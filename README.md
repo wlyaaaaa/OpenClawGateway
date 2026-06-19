@@ -44,13 +44,22 @@ openclaw_heartbeat.ps1              端口看门狗（计划任务调用）
 openclaw_update.ps1                 通道感知自动更新
 openclaw_run_hidden.vbs             零窗口启动包装器
 disable/enable-openclaw-api.ps1     安全模式引擎（被 api.ps1 调用）
+bootstrap\                          从零部署：setup.ps1 + 脱敏配置模板 + Cline 规则
 tools\                              配置助手（模型/思考/备份/状态/PDF导出）
 docs\                              文档（见下）
 ```
 
+## ♻️ 重装恢复（一句话）
+```powershell
+git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\OpenClawGateway
+E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
+```
+详见 [docs/DEPLOY.md](docs/DEPLOY.md)。**记得定期 `tools\backup-config.ps1` 并异地保存备份。**
+
 ## 📚 文档
 | 文档 | 内容 |
 |------|------|
+| [docs/DEPLOY.md](docs/DEPLOY.md) | **从零 / 重装部署**：一键 `bootstrap\setup.ps1` 全流程 |
 | [docs/USAGE.md](docs/USAGE.md) | 日常使用：模型/思考、斜杠命令、手机 ChatOps |
 | [docs/SCRIPTS.md](docs/SCRIPTS.md) | 脚本使用指南（逐个参数 + 示例） |
 | [docs/MAINTENANCE.md](docs/MAINTENANCE.md) | 部署 / 计划任务 / 更新 / 备份 / 故障排查 |

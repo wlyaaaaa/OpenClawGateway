@@ -1,0 +1,364 @@
+{
+  "agents": {
+    "defaults": {
+      "workspace": "C:\\Users\\10979\\.openclaw\\workspace",
+      "model": {
+        "primary": "openai/qwen3.7-max-2026-06-08"
+      },
+      "models": {
+        "google/gemini-3.1-pro-preview": {},
+        "google/gemini-3-flash-preview": {},
+        "openai/qwen3.7-max-2026-06-08": {},
+        "openai/qwen-max": {}
+      },
+      "imageQuality": "auto",
+      "reasoningDefault": "stream",
+      "elevatedDefault": "ask",
+      "runRetries": {
+        "base": 3,
+        "max": 5,
+        "min": 3,
+        "perProfile": 2
+      },
+      "thinkingDefault": "adaptive"
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "auth": {
+      "mode": "password",
+      "allowTailscale": true
+    },
+    "port": 18789,
+    "bind": "loopback",
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": true,
+      "preserveFunnel": true
+    },
+    "controlUi": {
+      "allowInsecureAuth": false
+    },
+    "nodes": {
+      "denyCommands": [
+        "camera.snap",
+        "camera.clip",
+        "screen.record",
+        "contacts.add",
+        "calendar.add",
+        "reminders.add",
+        "sms.send",
+        "sms.search"
+      ]
+    }
+  },
+  "session": {
+    "dmScope": "per-channel-peer"
+  },
+  "tools": {
+    "profile": "coding",
+    "web": {
+      "search": {
+        "provider": "parallel-free",
+        "enabled": true
+      }
+    },
+    "deny": [
+      "image"
+    ]
+  },
+  "plugins": {
+    "entries": {
+      "google": {
+        "enabled": true
+      },
+      "googlechat": {
+        "enabled": true
+      },
+      "parallel": {
+        "enabled": true
+      },
+      "workboard": {
+        "enabled": true
+      },
+      "memory-core": {
+        "config": {
+          "dreaming": {
+            "enabled": true
+          }
+        },
+        "enabled": true
+      },
+      "feishu": {
+        "enabled": true
+      },
+      "openai": {
+        "enabled": true
+      },
+      "memory-wiki": {
+        "enabled": true
+      }
+    }
+  },
+  "auth": {
+    "profiles": {
+      "openai:default": {
+        "provider": "openai",
+        "mode": "api_key"
+      }
+    }
+  },
+  "channels": {
+    "googlechat": {
+      "enabled": false,
+      "serviceAccount": "<GOOGLE_SERVICE_ACCOUNT_JSON_ONE_LINE>",
+      "audienceType": "app-url",
+      "audience": "https://wly.tailbe620b.ts.net/googlechat",
+      "allowBots": true
+    },
+    "feishu": {
+      "enabled": false,
+      "appId": "cli_aabb87c86c785cd2",
+      "appSecret": "<FEISHU_APP_SECRET>",
+      "dmPolicy": "open",
+      "allowFrom": [
+        "*"
+      ],
+      "groupPolicy": "open",
+      "requireMention": true,
+      "groupAllowFrom": [
+        "*"
+      ]
+    },
+    "telegram": {
+      "enabled": false,
+      "botToken": "<TELEGRAM_BOT_TOKEN>",
+      "dmPolicy": "open",
+      "allowFrom": [
+        8320970051
+      ],
+      "configWrites": true,
+      "groupAllowFrom": [
+        8320970051
+      ]
+    }
+  },
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "bootstrap-extra-files": {
+          "enabled": true
+        },
+        "command-logger": {
+          "enabled": true
+        },
+        "compaction-notifier": {
+          "enabled": true
+        },
+        "session-memory": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "wizard": {
+    "lastRunAt": "2026-06-17T05:46:05.560Z",
+    "lastRunVersion": "2026.6.6",
+    "lastRunCommand": "doctor",
+    "lastRunMode": "local"
+  },
+  "meta": {
+    "lastTouchedVersion": "2026.6.8",
+    "lastTouchedAt": "2026-06-19T22:30:06.859Z"
+  },
+  "commands": {
+    "ownerAllowFrom": [
+      "telegram:8320970051"
+    ],
+    "native": true,
+    "nativeSkills": true,
+    "bash": true,
+    "config": true,
+    "debug": true,
+    "mcp": true,
+    "plugins": true,
+    "text": true,
+    "useAccessGroups": true
+  },
+  "skills": {
+    "entries": {
+      "1password": {
+        "enabled": true
+      },
+      "apple-notes": {
+        "enabled": false
+      },
+      "apple-reminders": {
+        "enabled": false
+      },
+      "bear-notes": {
+        "enabled": false
+      },
+      "blogwatcher": {
+        "enabled": false
+      },
+      "blucli": {
+        "enabled": false
+      },
+      "camsnap": {
+        "enabled": false
+      },
+      "clawhub": {
+        "enabled": false
+      },
+      "coding-agent": {
+        "enabled": false
+      },
+      "discord": {
+        "enabled": false
+      },
+      "eightctl": {
+        "enabled": false
+      },
+      "gifgrep": {
+        "enabled": false
+      },
+      "goplaces": {
+        "enabled": false
+      },
+      "imsg": {
+        "enabled": false
+      },
+      "mcporter": {
+        "enabled": false
+      },
+      "model-usage": {
+        "enabled": false
+      },
+      "nano-pdf": {
+        "enabled": true
+      },
+      "obsidian": {
+        "enabled": false
+      },
+      "openai-whisper": {
+        "enabled": true
+      },
+      "openhue": {
+        "enabled": false
+      },
+      "oracle": {
+        "enabled": false
+      },
+      "ordercli": {
+        "enabled": false
+      },
+      "peekaboo": {
+        "enabled": false
+      },
+      "sag": {
+        "enabled": false
+      },
+      "session-logs": {
+        "enabled": true
+      },
+      "sherpa-onnx-tts": {
+        "enabled": false
+      },
+      "slack": {
+        "enabled": false
+      },
+      "songsee": {
+        "enabled": false
+      },
+      "sonoscli": {
+        "enabled": false
+      },
+      "spotify-player": {
+        "enabled": false
+      },
+      "summarize": {
+        "enabled": false
+      },
+      "things-mac": {
+        "enabled": false
+      },
+      "tmux": {
+        "enabled": false
+      },
+      "trello": {
+        "enabled": false
+      },
+      "video-frames": {
+        "enabled": false
+      },
+      "voice-call": {
+        "enabled": false
+      },
+      "wacli": {
+        "enabled": false
+      },
+      "xurl": {
+        "enabled": false
+      }
+    }
+  },
+  "models": {
+    "providers": {
+      "openai": {
+        "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "models": [
+          {
+            "id": "qwen3.7-max-2026-06-08",
+            "name": "Qwen3.7 Max (最强推理)",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 1.2e-05,
+              "output": 3.6e-05,
+              "cacheRead": 2.4e-06,
+              "cacheWrite": 1.5e-05
+            },
+            "contextWindow": 131072,
+            "contextTokens": 96000,
+            "maxTokens": 32768
+          },
+          {
+            "id": "qwen-max",
+            "name": "Qwen Max (省钱稳定)",
+            "reasoning": true,
+            "input": [
+              "text",
+              "image"
+            ],
+            "cost": {
+              "input": 1.2e-05,
+              "output": 3.6e-05,
+              "cacheRead": 2.4e-06,
+              "cacheWrite": 1.5e-05
+            },
+            "contextWindow": 131072,
+            "contextTokens": 96000,
+            "maxTokens": 32768
+          }
+        ],
+        "api": "openai-responses"
+      }
+    }
+  },
+  "update": {
+    "auto": {
+      "enabled": false
+    },
+    "channel": "stable",
+    "checkOnStart": false
+  },
+  "proxy": {
+    "enabled": false,
+    "proxyUrl": "http://127.0.0.1:7892"
+  }
+}
