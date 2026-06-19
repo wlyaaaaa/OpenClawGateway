@@ -83,7 +83,7 @@ powershell -File "E:\OpenClawGateway\disable-openclaw-api.ps1"
 # 恢复使用：还原 key 与渠道，重启网关并健康检查
 powershell -File "E:\OpenClawGateway\enable-openclaw-api.ps1"
 ```
-详见 [HOW-TO-ENABLE.md](HOW-TO-ENABLE.md)。安全模式下网关照常开机自启、监听 18789，
+详见 [SCRIPTS.md](SCRIPTS.md)。安全模式下网关照常开机自启、监听 18789，
 但**任何模型调用因无 key 立即失败 → 零花费**。
 
 ## 6. 渠道与命令权限（安全须知）
@@ -126,6 +126,7 @@ E:\OpenClawGateway\
 ├── openclaw_task.xml                   计划任务定义备份
 ├── disable-openclaw-api.ps1            进入安全模式(零花费)
 ├── enable-openclaw-api.ps1             恢复 API 使用
-├── docs\OPENCLAW.md / AUDIT.md / HOW-TO-ENABLE.md
+├── tools\                              配置助手脚本（模型/提供方/思考/备份/状态）
+└── docs\OPENCLAW.md / USAGE.md / SCRIPTS.md / MAINTENANCE.md / AUDIT.md
 └── logs\                               运行时日志(gitignored)
 ```

@@ -2,6 +2,8 @@
 logs/
 *.log
 *.log.1
+__pycache__/
+*.pyc
 
 # ── 机密：绝对不可提交 ──
 secrets-backup/
@@ -16,4 +18,4 @@ secrets-backup/
 *.key
 id_rsa*
 *service-account*.json
-*.pdf
+# 注：文档 PDF（docs/*.pdf、README.pdf）允许提交；secrets-backup 已整体忽略
