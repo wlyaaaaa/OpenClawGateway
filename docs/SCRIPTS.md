@@ -5,20 +5,50 @@
 
 ```
 E:\OpenClawGateway\
+├── api.ps1                             # ★快速：一键开关 API（on/off/toggle/status）
+├── set-api.ps1                         # ★快速：全局设 key/模型/网站 + 提供方档案
 ├── openclaw_silent_boot_guardian.ps1   # 服务：重注册静默开机自启任务
 ├── openclaw_heartbeat.ps1              # 服务：端口看门狗（由计划任务调用）
 ├── openclaw_update.ps1                 # 服务：通道感知自动更新
 ├── openclaw_run_hidden.vbs             # 服务：零窗口启动包装器
-├── disable-openclaw-api.ps1            # 成本：进入安全模式（零花费）
-├── enable-openclaw-api.ps1            # 成本：恢复 API 使用
+├── disable-openclaw-api.ps1            # 引擎：进入安全模式（零花费，被 api.ps1 调用）
+├── enable-openclaw-api.ps1            # 引擎：恢复 API 使用（被 api.ps1 调用）
 └── tools\
     ├── switch-model.ps1                # 切换默认模型 + 思考等级
-    ├── set-provider.ps1                # 更换 API 端点 / Key / 提供方
     ├── set-thinking.ps1                # 设置思考等级与显示
     ├── backup-config.ps1               # 备份全部配置与密钥
     ├── restore-config.ps1              # 从备份恢复
-    └── status.ps1                      # 一屏状态面板
+    ├── status.ps1                      # 一屏状态面板
+    └── build_docs_pdf.py               # 文档导出 PDF（白色纯绿主题）
 ```
+
+---
+
+## ★ 两个最常用快速脚本（根目录）
+
+### `api.ps1` — 一键开关 API
+```powershell
+.\api.ps1 on        # 开启（还原 key + Telegram 白名单 + funnel，机器人可用）
+.\api.ps1 off       # 关闭（清空 key + 关渠道/funnel，零花费安全模式）
+.\api.ps1           # 不带参数＝自动判别并翻转
+.\api.ps1 status    # 查看当前状态 + 完整面板
+```
+是 `enable/disable-openclaw-api.ps1` 的快捷前端，自动判别当前状态，记不住状态也不怕。
+
+### `set-api.ps1` — 快速全局设 key / 模型 / 网站
+> provider 固定 `openai`（OpenAI 兼容端点 / openai-responses 类型**不改**）。只动 key、模型、baseUrl。
+```powershell
+.\set-api.ps1 -Show                                          # 看当前
+.\set-api.ps1 -Model qwen3.7-max-2026-06-08                  # 只换模型
+.\set-api.ps1 -BaseUrl "https://xxx/v1" -Key "sk-xxx" -Model m -Test   # 全换 + 连通性自测
+```
+**提供方档案（优化）**：多家厂商配置存名一键切换，免反复输入。
+```powershell
+.\set-api.ps1 -Save dashscope        # 把当前配置存为档案 dashscope
+.\set-api.ps1 -Profile deepseek      # 一键切到 deepseek 档案
+.\set-api.ps1 -List                  # 列出所有档案
+```
+档案存于 `.secrets\providers.json`（已 gitignore）。改动前自动备份，`-Test` 改后自测。
 
 ---
 
@@ -70,12 +100,7 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 | `-Register` | 模型未登记时，自动加入 provider 的模型表 |
 | `-List` / `-NoRestart` | 仅查看 / 改完不立即重启 |
 
-### `set-provider.ps1` — 更换提供方 / 端点 / Key
-```powershell
-.\tools\set-provider.ps1 -ShowOnly                                # 只看当前
-.\tools\set-provider.ps1 -BaseUrl "https://xxx/v1" -Key "sk-xxx" -Model some-model
-```
-一步更新 `models.providers.<p>.baseUrl` + `auth-profiles.json` 的 key + 默认模型；改动前自动备份。
+> 更换提供方/端点/Key 用根目录的 **`set-api.ps1`**（见上方“两个最常用快速脚本”）。
 
 ### `set-thinking.ps1` — 思考等级
 ```powershell

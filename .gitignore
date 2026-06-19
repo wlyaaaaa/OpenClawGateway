@@ -7,6 +7,8 @@ __pycache__/
 
 # ── 机密：绝对不可提交 ──
 secrets-backup/
+.secrets/
+providers.json
 *.patch.json
 .env
 .env.*

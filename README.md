@@ -26,27 +26,25 @@ Google Chat 消息，驱动 **Qwen（阿里云 DashScope）** 大模型完成任
 
 ## 🚀 快速开始
 ```powershell
-# 状态一屏看全
-.\tools\status.ps1
+.\api.ps1 status                          # 状态一屏看全
+.\api.ps1 on                              # 开启 API（机器人可用）
+.\api.ps1 off                             # 闲时回到零花费
 
-# 点亮机器人（还原 key + 启用 Telegram 白名单 + funnel）
-powershell -ExecutionPolicy Bypass -File .\enable-openclaw-api.ps1
-
-# 切换/登记模型（新版本上线时）
-.\tools\switch-model.ps1 -Model <新模型id> -Register -Thinking max
-
-# 闲时回到零花费
-powershell -ExecutionPolicy Bypass -File .\disable-openclaw-api.ps1
+.\set-api.ps1 -Show                       # 看当前 key/模型/网站
+.\set-api.ps1 -Model <新模型id>           # 换模型（新版本上线时）
+.\set-api.ps1 -Profile deepseek           # 一键切到已存档的提供方
 ```
 
 ## 🗂 仓库结构
 ```
+api.ps1                             ★一键开关 API（on/off/toggle/status）
+set-api.ps1                         ★快速设 key/模型/网站 + 提供方档案
 openclaw_silent_boot_guardian.ps1   静默开机自启重注册
 openclaw_heartbeat.ps1              端口看门狗（计划任务调用）
 openclaw_update.ps1                 通道感知自动更新
 openclaw_run_hidden.vbs             零窗口启动包装器
-disable/enable-openclaw-api.ps1     成本安全模式开关
-tools\                              配置助手（模型/提供方/思考/备份/状态）
+disable/enable-openclaw-api.ps1     安全模式引擎（被 api.ps1 调用）
+tools\                              配置助手（模型/思考/备份/状态/PDF导出）
 docs\                              文档（见下）
 ```
 
