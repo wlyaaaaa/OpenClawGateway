@@ -6,8 +6,6 @@
         "primary": "openai/qwen3.7-max-2026-06-08"
       },
       "models": {
-        "google/gemini-3.1-pro-preview": {},
-        "google/gemini-3-flash-preview": {},
         "openai/qwen3.7-max-2026-06-08": {},
         "openai/qwen-max": {}
       },
@@ -170,7 +168,7 @@
   },
   "meta": {
     "lastTouchedVersion": "2026.6.8",
-    "lastTouchedAt": "2026-06-19T22:30:06.859Z"
+    "lastTouchedAt": "2026-06-19T22:50:11.668Z"
   },
   "commands": {
     "ownerAllowFrom": [
