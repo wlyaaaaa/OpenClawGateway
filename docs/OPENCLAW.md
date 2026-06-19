@@ -33,6 +33,15 @@
 OpenClaw（昵称“小龙虾”）是常驻后台的个人智能体网关，统一接收 Telegram / 飞书 /
 Google Chat 消息，驱动 Qwen 大模型完成任务，并可调用本机 Cline CLI 等工具。
 
+### 1.1 委托 Cline 省 token（主脑 + 廉价手）
+对于多文件编码、脚本调试、浏览器自动化这类重活，OpenClaw 主脑（贵的 `qwen3.7-max`）
+**不自己逐行读写**，而是经 bash 委托本地 **Cline CLI**（便宜的 `qwen-max` + diffs-only）：
+```bash
+cline -c "<目标仓库>" -m qwen-max "<一句话任务>"
+```
+主脑只下达任务、读回摘要、向用户汇报，**不把整个代码库读进上下文** —— 这是省 token 的关键。
+委托规则写在工作区 `TOOLS.md`，Cline 全局规范在 `~/Documents/Cline/Rules/`。
+
 ## 2. 开机自启机制（两条路线，二选一）
 
 ### 2.1 原生方式（推荐，v2026.6.6 内建）
