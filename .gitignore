@@ -1,0 +1,19 @@
+# ── 运行时 / 日志（非源码） ──
+logs/
+*.log
+*.log.1
+
+# ── 机密：绝对不可提交 ──
+secrets-backup/
+*.patch.json
+.env
+.env.*
+**/openclaw.json
+**/auth-profiles.json
+**/config.yml
+**/credentials/
+*.pem
+*.key
+id_rsa*
+*service-account*.json
+*.pdf
