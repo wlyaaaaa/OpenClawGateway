@@ -35,9 +35,17 @@ powershell -ExecutionPolicy Bypass -File .\enable-openclaw-api.ps1
 | `openclaw_run_hidden.vbs` | 零窗口启动包装器 |
 | `openclaw_task.xml` | 计划任务定义备份 |
 | `disable-openclaw-api.ps1` / `enable-openclaw-api.ps1` | 成本安全模式开关 |
+| `docs/USAGE.md` | **日常使用与省钱指南** |
 | `docs/OPENCLAW.md` | 运维手册 |
 | `docs/AUDIT.md` | 深度审计报告 |
 | `docs/HOW-TO-ENABLE.md` | 安全模式开关说明 |
+
+## 计划任务（三个，均静默 S4U/Highest）
+| 任务 | 触发 | 作用 |
+|------|------|------|
+| `OpenClaw Gateway` | 开机 +30s | 静默拉起网关 |
+| `OpenClaw Heartbeat` | 每 15 分钟 | 端口看门狗，自愈重启 |
+| `OpenClaw Update` | 每周日 04:00 | stable 通道自动更新（仅 npm，不阻塞开机） |
 
 ## 安全须知
 - 渠道白名单 `allowFrom` 只放自己的 ID，切勿用 `"*"`。

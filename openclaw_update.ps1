@@ -1,8 +1,11 @@
 # =====================================================================
-#  OpenClaw Gateway Auto-Update Helper Script
-#  Upgrades OpenClaw globally, restarts the Gateway task, and tests connection.
-#  Log output: E:\OpenClawGateway\logs\openclaw_update.log
-#  Must run in an elevated (Administrator) PowerShell.
+#  OpenClaw Gateway Auto-Update Helper (channel-aware, China-resilient)
+#  - Reads update.channel from config (stable/beta/dev) -> npm dist-tag
+#  - Updates ONLY the npm package (no `openclaw update` doctor), so the
+#    custom silent-boot scheduled task is never clobbered.
+#  - Restarts the Gateway task and runs a health check.
+#  Log: E:\OpenClawGateway\logs\openclaw_update.log
+#  Run elevated (Administrator) — invoked weekly by the "OpenClaw Update" task.
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
@@ -19,55 +22,62 @@ function Log([string]$m) {
     Write-Host $line
 }
 
-Log "═══════════════════════════════════════════════════════════"
-Log "  OpenClaw Update Helper — Running"
-Log "═══════════════════════════════════════════════════════════"
+Log "=== OpenClaw Update — start ==="
 
 # Elevation check
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
-    Log "[ERROR] This script MUST run as Administrator to update global npm packages and restart scheduled tasks."
-    Write-Warning "Please re-run this script in an elevated PowerShell session (Run as Administrator)."
+    Log "[ERROR] Must run as Administrator."
     exit 1
 }
 
+$taskName = 'OpenClaw Gateway'
+$port = 18789
+
 try {
-    # 1. Update OpenClaw package
-    Log "Running 'npm update -g openclaw'..."
-    # Capture npm output
-    $npmOutput = & npm update -g openclaw 2>&1
-    Log "npm output: $npmOutput"
-    Log "[OK] Global openclaw package updated."
+    # 1. Resolve channel -> npm dist-tag
+    $channel = 'stable'
+    try { $channel = (& openclaw config get update.channel 2>$null).Trim() } catch {}
+    switch ($channel) {
+        'beta' { $tag = 'beta' }
+        'dev'  { $tag = 'dev'  }
+        default { $tag = 'latest'; $channel = 'stable' }
+    }
+    Log "channel=$channel -> npm tag=@$tag"
 
-    # 2. Restart scheduled task
-    $taskName = "OpenClaw Gateway"
-    Log "Locating scheduled task '$taskName'..."
-    $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    if ($task) {
-        Log "Stopping '$taskName'..."
+    # 2. Current vs target version
+    $current = ''
+    if (((& openclaw --version 2>$null) | Out-String) -match '(\d+\.\d+\.\d+[\w.-]*)') { $current = $matches[1] }
+    $target  = (& npm view "openclaw@$tag" version 2>$null)
+    Log "current=$current  target(@$tag)=$target"
+    if (-not $target) { Log "[WARN] could not resolve target version (registry unreachable?). Aborting."; exit 1 }
+    if ($current -eq $target) { Log "[OK] already on $target. Nothing to do."; Log "=== done ==="; exit 0 }
+
+    # 3. Update the npm package ONLY (no doctor -> custom task preserved)
+    Log "running: npm install -g openclaw@$tag"
+    $npmOut = & npm install -g "openclaw@$tag" 2>&1
+    Log ("npm: " + ($npmOut -join ' | '))
+    $new = (& openclaw --version 2>$null)
+    Log "installed version now: $new"
+
+    # 4. Restart the Gateway task to load the new build
+    if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
+        $p = (Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -First 1).OwningProcess
         Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+        if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }
         Start-Sleep -Seconds 3
-
-        Log "Starting '$taskName'..."
         Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 3
-        Log "[OK] Scheduled task '$taskName' restarted."
-    } else {
-        Log "[WARN] Scheduled task '$taskName' not found. Skip restarting."
-    }
+        Start-Sleep -Seconds 10
+        Log "restarted '$taskName'"
+    } else { Log "[WARN] task '$taskName' not found; skip restart" }
 
-    # 3. Connection and health check
-    $port = 18789
-    Log "Testing TCP connection to port $port..."
-    $connection = Test-NetConnection -ComputerName "127.0.0.1" -Port $port -WarningAction SilentlyContinue
-    if ($connection.TcpTestSucceeded -eq $true) {
-        Log "[OK] Health check passed! OpenClaw Gateway is up and listening on port $port."
-    } else {
-        Log "[ERROR] Health check FAILED! Port $port is unresponsive after update."
-        Log "Check gateway logs at C:\Users\10979\.openclaw\gateway.log for errors."
-    }
-} catch {
-    Log "[ERROR] Update failed: $_"
+    # 5. Health check
+    $conn = Test-NetConnection -ComputerName '127.0.0.1' -Port $port -WarningAction SilentlyContinue
+    if ($conn.TcpTestSucceeded) { Log "[OK] gateway healthy on $port after update" }
+    else { Log "[ERROR] port $port unresponsive after update — see C:\Users\10979\.openclaw\gateway.log" }
 }
-
-Log "Update run completed. Log saved to $logFile"
+catch {
+    Log "[ERROR] update failed: $_"
+    exit 1
+}
+Log "=== done ==="

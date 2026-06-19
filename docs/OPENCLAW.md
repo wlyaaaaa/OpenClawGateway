@@ -6,7 +6,7 @@
 
 | 项目 | 值 |
 |------|----|
-| OpenClaw 版本 | v2026.6.6（npm 全局安装） |
+| OpenClaw 版本 | v2026.6.8（npm 全局安装，stable 通道周更） |
 | 网关端口 | 18789（仅 loopback 绑定） |
 | 公网入口 | Tailscale Funnel（按需开启） → `http://127.0.0.1:18789` |
 | LLM 供应端 | 阿里云百炼 DashScope（OpenAI 兼容端点），模型 `qwen3.7-max` / `qwen-max` |
