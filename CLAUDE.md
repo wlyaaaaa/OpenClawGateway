@@ -24,6 +24,7 @@
 | `E:\RamdiskGuardian` | RamdiskGuardian (public) | 独立 RAM 盘项目（已清空 openclaw） |
 | `E:\TimeAudit` | TimeAudit (public) | 有 `build_docs_pdf.py`（md→PDF，白绿主题） |
 | `E:\ClaudeMemoryBackup` | claude-memory (**private**) | Claude 记忆云备份（已脱敏）；新机拷 `*.md` 回 `.claude\...\memory\` 即恢复 |
+| `E:\OpenClawBackup` | openclaw-backup (**private**) | OpenClaw config+workspace 云备份（含密钥/人格/记忆，恢复用） |
 
 ## 3. 当前模型/端点状态（易变，不写死进公开文档）
 - OpenClaw 主模型 = `qwen3.7-max-2026-05-17`（**手机+电脑默认**，用户指定）；Cline 也用同端点此模型。
@@ -31,6 +32,7 @@
 - 已注册：0520 / 0517 / preview / `qwen3-max-2026-01-23`(降级)。**qwen-max 已删**。0520 免费额度曾耗尽（用户在阿里云补额度）。
 - 🔴 **关键修复别回退**：`models.providers.openai.api = "openai-completions"`。此端点不认 `role="tool"`，用 responses 会让**工具/技能调用 400 失败**；completions（function 角色）才行。
 - 思考 = `max`（用户要"最高思考、AI 不能太蠢"，成本次要；`adaptive` 有概率把难题误判为简单而欠思考，已弃用）；`contextPruning ttl=30m`（只裁旧工具输出，不丢对话）。临时降挡用 `tools\set-thinking.ps1`。
+- **省 token 调优（2026-06-21）**：`contextTokens` 全模型 **96000→64000**（更早压缩，单次请求 worst-case ~128K→~64K；历史累积是请求 token 大头，非 dreaming）；`dreaming.model=qwen3-max-2026-01-23`（后台巩固用便宜模型）；关 `googlechat` 插件（省工具定义）；workspace 指令文件已瘦身 44%。MaaS 端点不返回 cached_tokens，前缀缓存无效（无解）。
 - 缓存 `cacheRetention=long` 已设但此端点不返回 cached_tokens，无可测收益（无害）。
 - 切端点/模型工具：`.\set-api.ps1`（注意 PowerShell ConvertTo-Json 会损坏 models 数组，**改 openclaw.json 用 Python**）。
 
