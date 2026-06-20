@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 #  OpenClaw Gateway Auto-Update Helper (channel-aware, China-resilient)
 #  - Reads update.channel from config (stable/beta/dev) -> npm dist-tag
 #  - Updates ONLY the npm package (no `openclaw update` doctor), so the
@@ -59,6 +59,17 @@ try {
     Log ("npm: " + ($npmOut -join ' | '))
     $new = (& openclaw --version 2>$null)
     Log "installed version now: $new"
+
+    # 3.5 SELF-HEAL: re-assert critical config (new versions may migrate/reset it)
+    #     关键：api=openai-completions 一旦被改回 responses，工具/技能会 400 失败
+    $api = ((& openclaw config get models.providers.openai.api 2>$null) | Out-String).Trim()
+    if ($api -ne 'openai-completions') {
+        & openclaw config set models.providers.openai.api openai-completions 2>$null | Out-Null
+        Log "[SELF-HEAL] re-asserted api=openai-completions (was: $api)"
+    } else { Log "[SELF-HEAL] api=openai-completions OK" }
+    $tg = ((& openclaw config get channels.telegram.allowFrom 2>$null) | Out-String)
+    if ($tg -match '\*') { Log "[SELF-HEAL][WARN] telegram allowFrom 含 '*'(疑被 doctor 补回)，请手动收敛" }
+    if (((& openclaw config validate 2>&1) | Out-String) -match 'invalid') { Log "[SELF-HEAL][ERR] 更新后 config 无效，请检查" }
 
     # 4. Restart the Gateway task to load the new build
     if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {

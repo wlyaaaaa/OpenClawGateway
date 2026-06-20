@@ -49,3 +49,20 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 ```powershell
 .\tools\status.ps1     # 版本/网关/任务/模型/思考/API模式/渠道/Funnel
 ```
+
+
+## 7. 在 Telegram/飞书 对话式控制（owner 直接发）
+| 发什么 | 作用 |
+|--------|------|
+| `/model` ｜ `/model set <id>` | 看 / 切模型 |
+| `/think off..max` | 调思考等级 |
+| `/new` | 开新会话 |
+| `/status` ｜ `/settings` ｜ `/doctor` | 网关状态 / 配置看板 / 自检 |
+| "汇报系统/脚本状态" | 它会跑 `tools/status.ps1` 简洁汇报（版本/网关/任务/模型/思考/渠道） |
+
+## 8. ⚠️ 自动更新：不要点应用内的"自动更新"按钮
+- **应用内/原生 `openclaw update`** 会跑 **doctor + schema 迁移**，可能：补回 `*` 白名单、**把 `api` 改回 `responses`→ 技能全部 400 失败**、覆盖自定义开机任务。**风险高，别按。**
+- **要更新就跑** `powershell -File E:\OpenClawGateway\openclaw_update.ps1`（**只用 npm，不跑 doctor**，且更新后**自动重断言 `api=openai-completions`** 自愈）。
+- 万一手滑点了应用内更新：**事后跑一次 `openclaw_update.ps1`** 即可自愈关键配置。
+- 永远别跑 `openclaw doctor --fix`（它会补回 `*`）。
+- 更新前先 `tools/backup-config.ps1` 备份，坏了能回滚。
