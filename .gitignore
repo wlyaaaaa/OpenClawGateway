@@ -5,6 +5,13 @@ logs/
 __pycache__/
 *.pyc
 
+# ── 备份归档（体积大 / 可能含机密，绝不进公开仓库） ──
+*.zip
+*.codeg.zip
+codeg-backup-*
+*.bak
+secrets-backup-*
+
 # ── 机密：绝对不可提交 ──
 secrets-backup/
 .secrets/

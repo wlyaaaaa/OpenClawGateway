@@ -1,8 +1,8 @@
 # 日常使用指南
 
 > 适配：OpenClaw v2026.6.8 + DashScope/Qwen。
-> **默认即最强**：默认模型 `qwen3.7-max-2026-06-08` + 思考等级 `max`（追求能力，不为省钱妥协）。
-> 当前 API 处于**安全模式**（key 已清空、零花费）；要用机器人先 `enable`。
+> **默认即最强**：默认模型 `qwen3.7-max-2026-05-17`（手机+电脑统一）+ 思考等级 `max`（追求能力，不为省钱妥协）。
+> 当前 API **已启用（ON）**，机器人可直接用；想零花费时 `api.ps1 off` 回安全模式（清空 key）。
 
 ## 0. 开始使用
 ```powershell
@@ -15,8 +15,8 @@ powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\enable-openclaw-api.
 - 默认就是最强推理模型 + 最高思考；一般无需手动调。
 - 临时换模型/降思考（省 token 或加速）用斜杠命令或脚本：
 ```powershell
-.\tools\switch-model.ps1 -Model qwen-max -Thinking medium   # 临时换轻量
-.\tools\switch-model.ps1 -Model qwen3.7-max-2026-06-08 -Thinking max   # 切回最强
+.\tools\switch-model.ps1 -Model qwen3-max-2026-01-23 -Thinking medium   # 临时换轻量
+.\tools\switch-model.ps1 -Model qwen3.7-max-2026-05-17 -Thinking max     # 切回最强
 ```
 - **新模型上线**（阿里出新版）时：`.\tools\switch-model.ps1 -Model <新id> -Register`。
 
@@ -40,7 +40,7 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 - `commands.bash` 开着＝聊天可在本机执行命令，务必只对可信白名单开放。
 
 ## 5. 成本与稳定（信息参考，不强制）
-- 你优先“最强”，默认已最强；如某段时间想省，临时用 `qwen-max` + `/think low`。
+- 你优先“最强”，默认已最强；如某段时间想省，临时用 `qwen3-max-2026-01-23` + `/think low`。
 - `memory-core.dreaming` 默认**关**（开=后台自动思考会持续花费）。
 - 长期不用就 `disable`（安全模式，零花费）。
 - Node 堆已设 1536MB，重载多渠道时更不易 OOM。
@@ -66,3 +66,9 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 - 万一手滑点了应用内更新：**事后跑一次 `openclaw_update.ps1`** 即可自愈关键配置。
 - 永远别跑 `openclaw doctor --fix`（它会补回 `*`）。
 - 更新前先 `tools/backup-config.ps1` 备份，坏了能回滚。
+
+## 9. 在 codeg 控制台里用 OpenClaw（详见 [CODEG.md](CODEG.md)）
+- ❌ **别用** codeg 的「OpenClaw」ACP agent —— per-session MCP + auth 握手是 codeg 的 bug，走不通。
+- ✅ 用 **Cline** agent + 挂 `openclaw-bridge` MCP（**必须带网关密码** `OPENCLAW_GATEWAY_PASSWORD`）。
+- 一键配置：`powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1` → codeg「MCP」页点刷新 → 把 openclaw-bridge 勾给 Cline → 用 Cline 发任务。
+- 配好后 Cline 可调 OpenClaw 的 9 个对话工具（列对话 / 读发消息 / 轮询事件 / 处理审批）。

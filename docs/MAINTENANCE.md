@@ -75,8 +75,14 @@ Register-ScheduledTask 'OpenClaw Update' -Action $au -Trigger $tu -Principal $pr
 | context overflow 崩溃 | 聊天里 `/new` 重置会话；见 USAGE |
 | 启动慢 / registry 超时 | 确认 `checkOnStart=false`；本地代理是否就绪 |
 | 网关 OOM 崩溃 | `gateway.cmd` 已设 `--max-old-space-size=1536`，可再调高 |
+| codeg 里 OpenClaw 报 `Authentication required` | openclaw-bridge MCP 没带网关密码 → 跑 `tools\setup-codeg-bridge.ps1`；见 [CODEG.md](CODEG.md) |
+| codeg 里 OpenClaw 报 `per-session MCP servers` | 用了 OpenClaw ACP agent（codeg bug）→ 改用 Cline agent + openclaw-bridge MCP |
 
 常用诊断：`openclaw doctor`、`openclaw daemon status`、`openclaw status`、`openclaw health`。
+
+## 8. codeg 控制台接入（详见 CODEG.md）
+codeg 的 OpenClaw ACP agent 走不通；用 **Cline + openclaw-bridge MCP（带网关密码）** 间接调用 OpenClaw。
+一键：`powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1`。
 
 ## 7. 卸载
 ```powershell

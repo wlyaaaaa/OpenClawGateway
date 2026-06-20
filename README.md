@@ -45,7 +45,7 @@ openclaw_update.ps1                 通道感知自动更新
 openclaw_run_hidden.vbs             零窗口启动包装器
 disable/enable-openclaw-api.ps1     安全模式引擎（被 api.ps1 调用）
 bootstrap\                          从零部署：setup.ps1 + 脱敏配置模板 + Cline 规则
-tools\                              配置助手（模型/思考/备份/状态/PDF导出）
+tools\                              配置助手（模型/思考/备份/状态/PDF导出/setup-codeg-bridge）
 docs\                              文档（见下）
 ```
 
@@ -64,12 +64,14 @@ E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
 | [docs/SCRIPTS.md](docs/SCRIPTS.md) | 脚本使用指南（逐个参数 + 示例） |
 | [docs/MAINTENANCE.md](docs/MAINTENANCE.md) | 部署 / 计划任务 / 更新 / 备份 / 故障排查 |
 | [docs/OPENCLAW.md](docs/OPENCLAW.md) | 架构与原理 |
+| [docs/CODEG.md](docs/CODEG.md) | **codeg 控制台接 OpenClaw / Cline**（openclaw-bridge MCP） |
 | [docs/AUDIT.md](docs/AUDIT.md) | 深度审计记录 |
 
 ## ⚙️ 当前状态（参考）
-- 版本 v2026.6.8（stable，周更）｜ 默认模型 `qwen3.7-max` + 思考 `max`
-- 网关 loopback:18789，堆 1536MB｜ API：安全模式（零花费，用前 `enable`）
-- 计划任务：`OpenClaw Gateway`(自启) 启用；`Heartbeat`/`Update` 暂停中（可一键恢复）
+- 版本 v2026.6.8（stable）｜ 默认模型 `qwen3.7-max-2026-05-17` + 思考 `max`（最高）
+- 网关 loopback:18789，堆 1536MB｜ API：**已启用（ON）**，闲时 `api.ps1 off` 回零花费
+- 计划任务：`OpenClaw Gateway`(自启)、`Heartbeat`(15min)、`AutoPush`(每日) 均 **Ready**；
+  `OpenClaw Update` **Disabled**（故意，改用 `openclaw_update.ps1` 手动+自愈，避免原生 doctor 改坏配置）
 
 ## 🔐 安全须知
 - 渠道白名单 `allowFrom` 只放自己的 ID，切勿用 `"*"`。
