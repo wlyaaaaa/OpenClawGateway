@@ -18,7 +18,11 @@
         "min": 3,
         "perProfile": 2
       },
-      "thinkingDefault": "adaptive"
+      "thinkingDefault": "adaptive",
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "5m"
+      }
     }
   },
   "gateway": {
@@ -168,7 +172,7 @@
   },
   "meta": {
     "lastTouchedVersion": "2026.6.8",
-    "lastTouchedAt": "2026-06-19T22:50:11.668Z"
+    "lastTouchedAt": "2026-06-19T23:05:53.079Z"
   },
   "commands": {
     "ownerAllowFrom": [
@@ -299,6 +303,12 @@
       },
       "xurl": {
         "enabled": false
+      },
+      "wechat": {
+        "enabled": true
+      },
+      "cline-coding": {
+        "enabled": true
       }
     }
   },

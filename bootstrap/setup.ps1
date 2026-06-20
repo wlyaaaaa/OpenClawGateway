@@ -90,12 +90,21 @@ $upT = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 4am
 Register-ScheduledTask 'OpenClaw Update' -Action $up -Trigger $upT -Principal $pr2 -Settings (New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable) -Force | Out-Null
 Info '三个任务已注册（Heartbeat/Update 默认启用，可按需 Disable）。'
 
-# 6. Cline 全局规则
-Step '6/6 安装 Cline 全局规则'
+# 6. Cline 全局规则 + 工作区联动 skills
+Step '6/6 安装 Cline 全局规则 + 联动 skills'
 $rulesDst = Join-Path $env:USERPROFILE 'Documents\Cline\Rules'
 New-Item -ItemType Directory -Force $rulesDst | Out-Null
 Copy-Item (Join-Path $PSScriptRoot 'cline-rules\openclaw-service.md') $rulesDst -Force
-Info "已装到 $rulesDst"
+Info "Cline 全局规则 → $rulesDst"
+# 安装工作区 skills（cline-coding 联动；wechat skill 从私有备份恢复）
+$skillsSrc = Join-Path $PSScriptRoot 'skills'
+$skillsDst = Join-Path $OC 'workspace\skills'
+if (Test-Path $skillsSrc) {
+    New-Item -ItemType Directory -Force $skillsDst | Out-Null
+    Copy-Item "$skillsSrc\*" $skillsDst -Recurse -Force
+    foreach ($s in (Get-ChildItem $skillsSrc -Directory).Name) { & openclaw config set "skills.entries.$s.enabled" true 2>$null | Out-Null }
+    Info "联动 skills → $skillsDst（已启用）"
+}
 
 Step '完成'
 & openclaw config validate 2>&1 | Select-Object -First 3

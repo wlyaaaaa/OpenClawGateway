@@ -85,11 +85,23 @@ copy bootstrap\cline-rules\openclaw-service.md  $env:USERPROFILE\Documents\Cline
 ## 4. 这套部署内置的优化（重装后自动带上）
 模板 `bootstrap/openclaw.template.json` 已固化以下优化，重装即恢复：
 - **默认模型** `qwen3.7-max`（最强）+ **`thinkingDefault: adaptive`**（分级预算，难题拉满、闲聊降档省 token）
-- 模型名已修复（无乱码）；`runRetries.max=5`（减少无效重试烧 token）
+- **`contextPruning: {mode: cache-ttl, ttl: 5m}`** —— 自动裁剪累积的旧工具输出，对话质量无损（官方 session-pruning，纯省 token）
+- 模型名已修复（无乱码）、移除失效 gemini 选项；`runRetries.max=5`（减少无效重试烧 token）
 - **更新通道 stable** + `checkOnStart=false`（开机不被 registry 超时拖崩）
 - `gateway.cmd` 堆上限 **1536MB**（防 OOM）
 - 渠道默认收敛白名单（无 `"*"`）
-- 主脑**委托 Cline 省 token** 的规则（工作区 TOOLS.md + Cline 全局规则）
+
+### 4.1 工具联动（skills 触发式联想）
+重装后由 `setup.ps1` 安装到工作区 `skills/`，让主脑**自动联想**正确工具：
+- `🦞 cline-coding` —— 提到**写/改/调试代码、多文件、构建功能** → 委托本机 Cline（便宜模型 + diffs-only，省 token）
+- `💬 wechat` —— 提到**微信/群消息/私聊/朋友圈** → 调本机 WeFlow API 读消息（此 skill 含本机隐私用法，**不入公开仓库**，重装从私有备份恢复）
+
+### 4.2 可选进阶优化（需有付费 API 实跑验证后再开）
+- **Prompt 缓存**：`agents.defaults.params.cacheRetention: "long"` +
+  `models.providers.openai.compat.supportsPromptCacheKey: true`（+`supportsLongCacheRetention: true`）。
+  大杠杆，但 DashScope 是否接受该参数需真跑确认；若首条请求报模型错即回滚此两项。
+- **Lobster**（复杂工作流编排，省工具调用 token）：当前未安装，可 `openclaw` 生态安装后启用。
+- **AGENTS.md 瘦身**（约 4.1K tokens/轮）：行为影响需实跑验证，谨慎。
 
 ---
 
