@@ -68,14 +68,18 @@ Register-ScheduledTask 'OpenClaw Update' -Action $au -Trigger $tu -Principal $pr
 .\tools\backup-memory.ps1                 # Claude 记忆（计划任务每日 04:00+13:00 自动跑）
 ```
 重点备份：`openclaw.json`、`auth-profiles.json`、`config.yml`、`.env`、`credentials\`、`gateway.cmd`。
-记忆备份在 `memory-backup\<时间戳>\`（gitignore，保留最近 30 份）；含运维上下文非原始密钥，**不入公开仓库**。
+记忆备份双保险：①本地 `memory-backup\<时间戳>\`（gitignore，留 30 份）②私有云仓库 **`wlyaaaaa/claude-memory`**（已脱敏，本地工作目录 `E:\ClaudeMemoryBackup`）。计划任务每日 04:00+13:00 自动两者都做。
 
 ### 5.1 新电脑转移（从 GitHub）
 ```powershell
+# 1) 运维体系
 git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\OpenClawGateway
 E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
+# 2) Claude 记忆（私有仓库）
+git clone https://github.com/wlyaaaaa/claude-memory.git E:\ClaudeMemoryBackup
+Copy-Item E:\ClaudeMemoryBackup\*.md "C:\Users\10979\.claude\projects\E--RamdiskGuardian\memory\" -Force
 ```
-脚本/文档/模板随 git 来；**密钥与记忆**从你的**私有备份**还原（`auth-profiles.json`/`.env`/`config.yml` + `memory-backup\`）。详见 [DEPLOY.md](DEPLOY.md)。
+脚本/文档/模板随公开 git 来；**密钥**从你的私有备份还原（`auth-profiles.json`/`.env`/`config.yml`）；**记忆**从私有 `claude-memory` 仓库拉。详见 [DEPLOY.md](DEPLOY.md)。
 
 ## 6. 故障排查
 | 现象 | 排查 |

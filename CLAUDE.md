@@ -23,6 +23,7 @@
 | `E:\ClineAgent` | 无 remote（本地） | Cline 工作沙箱，含 .clinerules |
 | `E:\RamdiskGuardian` | RamdiskGuardian (public) | 独立 RAM 盘项目（已清空 openclaw） |
 | `E:\TimeAudit` | TimeAudit (public) | 有 `build_docs_pdf.py`（md→PDF，白绿主题） |
+| `E:\ClaudeMemoryBackup` | claude-memory (**private**) | Claude 记忆云备份（已脱敏）；新机拷 `*.md` 回 `.claude\...\memory\` 即恢复 |
 
 ## 3. 当前模型/端点状态（易变，不写死进公开文档）
 - OpenClaw 主模型 = `qwen3.7-max-2026-05-17`（**手机+电脑默认**，用户指定）；Cline 也用同端点此模型。
@@ -34,7 +35,7 @@
 - 切端点/模型工具：`.\set-api.ps1`（注意 PowerShell ConvertTo-Json 会损坏 models 数组，**改 openclaw.json 用 Python**）。
 
 ## 4. 计划任务（schtasks）
-`OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日归档推送,Ready) · `OpenClaw Memory Backup`(**每日 04:00+13:00**,Ready,跑 `tools\backup-memory.ps1` 备份 Claude 记忆到本地 `memory-backup\`)。
+`OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日归档推送,Ready) · `OpenClaw Memory Backup`(**每日 04:00+13:00**,Ready,跑 `tools\backup-memory.ps1`：本地 `memory-backup\` 轮换 + 推私有云仓库 `wlyaaaaa/claude-memory`)。
 > ⚠️ **更新只走命令行**：`openclaw_update.ps1`（npm-only+自愈）；**绝不点应用内/原生 `openclaw update`**（跑 doctor 会改坏 api/白名单/gateway.cmd）。
 
 ## 5. 联想 skills（提到就触发，均 Ready+Visible）

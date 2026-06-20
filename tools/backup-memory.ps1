@@ -8,10 +8,11 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$src  = "C:\Users\10979\.claude\projects\E--RamdiskGuardian\memory"
-$root = "E:\OpenClawGateway\memory-backup"
-$keep = 30
-$log  = "E:\OpenClawGateway\logs\backup-memory.log"
+$src       = "C:\Users\10979\.claude\projects\E--RamdiskGuardian\memory"
+$root      = "E:\OpenClawGateway\memory-backup"
+$cloudRepo = "E:\ClaudeMemoryBackup"   # 私有云备份仓库 wlyaaaaa/claude-memory
+$keep      = 30
+$log       = "E:\OpenClawGateway\logs\backup-memory.log"
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -39,4 +40,32 @@ if ($dirs.Count -gt $keep) {
         Log "[..] 清理旧备份 $($_.Name)"
     }
 }
-Log "=== done (共 $($dirs.Count) 份) ==="
+
+# 云备份：镜像记忆 .md 到私有仓库并推送（非致命；本地快照已成功）
+# 注意：git 的 LF/CRLF 警告走 stderr，必须用 2>$null + 放宽 EAP，否则会被 Stop 当错误中断。
+if (Test-Path (Join-Path $cloudRepo '.git')) {
+    $eapSave = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        # 复制有变化的 .md（不删 README；robocopy 退出码 <8 均为成功）
+        robocopy $src $cloudRepo *.md /NJH /NJS /NFL /NDL 2>$null | Out-Null
+        $changed = (& git -C $cloudRepo status --porcelain 2>$null) -join ''
+        if ($changed) {
+            & git -C $cloudRepo add -A 2>$null | Out-Null
+            & git -C $cloudRepo commit -m ("memory snapshot {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm')) 2>$null | Out-Null
+            & git -C $cloudRepo push origin main 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { Log "[OK] 云备份已推送 (private: wlyaaaaa/claude-memory)" }
+            else { Log "[WARN] 云备份 push 退出码 $LASTEXITCODE（本地快照已成功）" }
+        } else {
+            Log "[..] 云备份无变化，跳过推送"
+        }
+    } catch {
+        Log "[WARN] 云备份失败（本地快照已成功）: $_"
+    } finally {
+        $ErrorActionPreference = $eapSave
+    }
+} else {
+    Log "[..] 云备份仓库未初始化（$cloudRepo），跳过"
+}
+
+Log "=== done (本地 $($dirs.Count) 份) ==="

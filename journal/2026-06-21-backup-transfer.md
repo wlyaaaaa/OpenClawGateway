@@ -25,5 +25,13 @@
 - 更新 `docs/MAINTENANCE.md`（任务表 + 备份策略 + 5.1 新电脑转移）、`docs/SCRIPTS.md`（backup-memory / setup-codeg-bridge）、`CLAUDE.md`（任务清单 + 更新只走命令行警告）。
 - 重新生成 MAINTENANCE.pdf / SCRIPTS.pdf。
 
+## F. 记忆云备份（追加，用户要求"云备份很必要"）
+- 新建**私有**仓库 `wlyaaaaa/claude-memory`（gh repo view 实测 visibility=PRIVATE），本地工作目录 `E:\ClaudeMemoryBackup`。
+- 上传前**脱敏**：`openclaw-secret-leak.md` 原本明文写了网关密码 → 改为"值见本机 env"；全量复扫 0 残留密钥后才上云。
+- `backup-memory.ps1` 增云推送段：robocopy 镜像 .md → git add/commit/push。
+- **踩坑**：`$ErrorActionPreference='Stop'` 下 git 的 LF/CRLF 警告走 stderr 被当错误抛 → 云推送失败。修复：git 调用全部 `2>$null` + 局部 EAP=Continue + 云仓库 `core.autocrlf false` + `.gitattributes * -text`。
+- **端到端实测通过**：改 MEMORY.md → 跑脚本 → 日志 `[OK] 云备份已推送` → 云端新增 `memory snapshot` 提交；远程内容核实含最新、无明文密码。
+- 新机恢复：`git clone claude-memory` → 拷 `*.md` 回 `.claude\...\memory\`。
+
 ## 当前计划任务全景
-Gateway / Heartbeat / AutoPush / WeFlow Watchdog / **Memory Backup(04:00+13:00)** = Ready；OpenClaw Update = Disabled（故意）。
+Gateway / Heartbeat / AutoPush / WeFlow Watchdog / **Memory Backup(04:00+13:00，本地+私有云)** = Ready；OpenClaw Update = Disabled（故意）。

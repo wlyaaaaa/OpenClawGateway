@@ -119,11 +119,12 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 .\tools\status.ps1     # 版本/网关/任务/模型/思考/API模式/渠道/Funnel 一屏看全
 ```
 
-### `backup-memory.ps1` — 备份 Claude 记忆
+### `backup-memory.ps1` — 备份 Claude 记忆（本地 + 私有云）
 ```powershell
-.\tools\backup-memory.ps1     # 备份 .claude 记忆到 memory-backup\<时间戳>\（轮换 30 份，gitignore）
+.\tools\backup-memory.ps1     # ①本地轮换快照 memory-backup\<时间戳>\（留30份，gitignore）
+                              # ②镜像并推送到私有云仓库 wlyaaaaa/claude-memory（E:\ClaudeMemoryBackup）
 ```
-计划任务「OpenClaw Memory Backup」每日 **04:00 + 13:00** 自动跑。记忆含运维上下文非原始密钥，不入公开仓库。
+计划任务「OpenClaw Memory Backup」每日 **04:00 + 13:00** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**），本地快照不入公开仓库；云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后把 `*.md` 拷回 `C:\Users\10979\.claude\projects\E--RamdiskGuardian\memory\`。
 
 ### `setup-codeg-bridge.ps1` — 一键接 codeg
 ```powershell
