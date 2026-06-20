@@ -26,9 +26,11 @@ powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
 ## 2. 计划任务一览
 | 任务 | 触发 | 脚本 | 状态控制 |
 |------|------|------|----------|
-| `OpenClaw Gateway` | 开机 +30s | VBS→gateway.cmd | 开机自启，常驻启用 |
-| `OpenClaw Heartbeat` | 每 15 分钟 | openclaw_heartbeat.ps1 | 看门狗，可暂停 |
-| `OpenClaw Update` | 每周日 04:00 | openclaw_update.ps1 | 自动更新，可暂停 |
+| `OpenClaw Gateway` | 开机 +30s | VBS→gateway.cmd | 开机自启，常驻启用 (Ready) |
+| `OpenClaw Heartbeat` | 每 15 分钟 | openclaw_heartbeat.ps1 | 端口看门狗 (Ready) |
+| `OpenClaw Update` | 每周 04:00 | openclaw_update.ps1 | 自动更新，**Disabled（故意，改用脚本手动+自愈）** |
+| `OpenClawGateway AutoPush` | 每日 | tools\auto-archive-push.ps1 | 归档+机密扫描后推 GitHub (Ready) |
+| `OpenClaw Memory Backup` | 每日 **04:00 + 13:00** | tools\backup-memory.ps1 | 备份 Claude 记忆到本地(轮换30份，gitignore) (Ready) |
 
 ```powershell
 # 查看
@@ -62,9 +64,18 @@ Register-ScheduledTask 'OpenClaw Update' -Action $au -Trigger $tu -Principal $pr
 
 ## 5. 备份策略
 ```powershell
-.\tools\backup-config.ps1                 # 定期：配置 + 密钥 + credentials
+.\tools\backup-config.ps1                 # 配置 + 密钥 + credentials
+.\tools\backup-memory.ps1                 # Claude 记忆（计划任务每日 04:00+13:00 自动跑）
 ```
 重点备份：`openclaw.json`、`auth-profiles.json`、`config.yml`、`.env`、`credentials\`、`gateway.cmd`。
+记忆备份在 `memory-backup\<时间戳>\`（gitignore，保留最近 30 份）；含运维上下文非原始密钥，**不入公开仓库**。
+
+### 5.1 新电脑转移（从 GitHub）
+```powershell
+git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\OpenClawGateway
+E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
+```
+脚本/文档/模板随 git 来；**密钥与记忆**从你的**私有备份**还原（`auth-profiles.json`/`.env`/`config.yml` + `memory-backup\`）。详见 [DEPLOY.md](DEPLOY.md)。
 
 ## 6. 故障排查
 | 现象 | 排查 |

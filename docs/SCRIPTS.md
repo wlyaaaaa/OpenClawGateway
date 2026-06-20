@@ -116,8 +116,20 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 
 ### `status.ps1` — 状态面板
 ```powershell
-.\tools\status.ps1     # 版本/网关/三任务/模型/思考/API模式/渠道/Funnel 一屏看全
+.\tools\status.ps1     # 版本/网关/任务/模型/思考/API模式/渠道/Funnel 一屏看全
 ```
+
+### `backup-memory.ps1` — 备份 Claude 记忆
+```powershell
+.\tools\backup-memory.ps1     # 备份 .claude 记忆到 memory-backup\<时间戳>\（轮换 30 份，gitignore）
+```
+计划任务「OpenClaw Memory Backup」每日 **04:00 + 13:00** 自动跑。记忆含运维上下文非原始密钥，不入公开仓库。
+
+### `setup-codeg-bridge.ps1` — 一键接 codeg
+```powershell
+.\tools\setup-codeg-bridge.ps1   # 把带网关密码的 openclaw-bridge MCP 写进 Cline 生效配置 + 探活
+```
+用于 codeg 控制台经 Cline 调用 OpenClaw（ACP 直连走不通）。详见 [CODEG.md](CODEG.md)。
 
 ---
 

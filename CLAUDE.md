@@ -34,7 +34,8 @@
 - 切端点/模型工具：`.\set-api.ps1`（注意 PowerShell ConvertTo-Json 会损坏 models 数组，**改 openclaw.json 用 Python**）。
 
 ## 4. 计划任务（schtasks）
-`OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日归档推送,Ready)。
+`OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日归档推送,Ready) · `OpenClaw Memory Backup`(**每日 04:00+13:00**,Ready,跑 `tools\backup-memory.ps1` 备份 Claude 记忆到本地 `memory-backup\`)。
+> ⚠️ **更新只走命令行**：`openclaw_update.ps1`（npm-only+自愈）；**绝不点应用内/原生 `openclaw update`**（跑 doctor 会改坏 api/白名单/gateway.cmd）。
 
 ## 5. 联想 skills（提到就触发，均 Ready+Visible）
 `cline-coding`(代码/多文件→委托Cline) · `wechat`(微信/群消息→WeFlow API) · `lobster`(复杂多步→确定性管道省token)。规则在 `workspace\TOOLS.md` + `~\Documents\Cline\Rules\`。
