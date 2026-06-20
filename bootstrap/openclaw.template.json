@@ -3,11 +3,11 @@
     "defaults": {
       "workspace": "C:\\Users\\10979\\.openclaw\\workspace",
       "model": {
-        "primary": "openai/qwen3.7-max-2026-06-08"
+        "primary": "openai/qwen3.7-max-2026-05-17"
       },
       "models": {
-        "openai/qwen3.7-max-2026-06-08": {},
-        "openai/qwen-max": {}
+        "openai/qwen3.7-max-2026-05-17": {},
+        "openai/qwen3-max-2026-01-23": {}
       },
       "imageQuality": "auto",
       "reasoningDefault": "stream",
@@ -318,7 +318,7 @@
         "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "models": [
           {
-            "id": "qwen3.7-max-2026-06-08",
+            "id": "qwen3.7-max-2026-05-17",
             "name": "Qwen3.7 Max (最强推理)",
             "reasoning": true,
             "input": [
@@ -336,8 +336,8 @@
             "maxTokens": 32768
           },
           {
-            "id": "qwen-max",
-            "name": "Qwen Max (省钱稳定)",
+            "id": "qwen3-max-2026-01-23",
+            "name": "Qwen3 Max (轻量稳定)",
             "reasoning": true,
             "input": [
               "text",
@@ -354,7 +354,7 @@
             "maxTokens": 32768
           }
         ],
-        "api": "openai-responses"
+        "api": "openai-completions"
       }
     }
   },

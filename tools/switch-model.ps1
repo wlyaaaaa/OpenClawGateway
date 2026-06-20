@@ -1,7 +1,7 @@
 ﻿<#
 .SYNOPSIS  快速切换 OpenClaw 默认模型（可选同时设思考等级）。
 .EXAMPLE   .\switch-model.ps1 -List
-.EXAMPLE   .\switch-model.ps1 -Model qwen3.7-max-2026-06-08 -Thinking max
+.EXAMPLE   .\switch-model.ps1 -Model qwen3.7-max-2026-05-17 -Thinking max
 .EXAMPLE   .\switch-model.ps1 -Model qwen4-max-2026-12-01 -Register   # 注册并切到新版本模型
 .NOTES     新模型上线时用 -Register 自动登记到 provider，再设为默认。
 #>

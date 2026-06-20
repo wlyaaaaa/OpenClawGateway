@@ -9,7 +9,7 @@
 | OpenClaw 版本 | v2026.6.8（npm 全局安装，stable 通道周更） |
 | 网关端口 | 18789（仅 loopback 绑定） |
 | 公网入口 | Tailscale Funnel（按需开启） → `http://127.0.0.1:18789` |
-| LLM 供应端 | 阿里云百炼 DashScope（OpenAI 兼容端点），模型 `qwen3.7-max` / `qwen-max` |
+| LLM 供应端 | 阿里云百炼 DashScope/MaaS（OpenAI 兼容端点），默认 `qwen3.7-max-2026-05-17`；另注册 `preview` / `qwen3-max-2026-01-23` |
 | 配置文件 | `C:\Users\10979\.openclaw\openclaw.json` |
 | 密钥库 | `C:\Users\10979\.openclaw\auth-profiles.json`（含 `agents\main\agent\` 副本） |
 | 启动脚本 | `C:\Users\10979\.openclaw\gateway.cmd`（原生 daemon 生成） |
@@ -33,12 +33,15 @@
 OpenClaw（昵称“小龙虾”）是常驻后台的个人智能体网关，统一接收 Telegram / 飞书 /
 Google Chat 消息，驱动 Qwen 大模型完成任务，并可调用本机 Cline CLI 等工具。
 
-### 1.1 委托 Cline 省 token（主脑 + 廉价手）
-对于多文件编码、脚本调试、浏览器自动化这类重活，OpenClaw 主脑（贵的 `qwen3.7-max`）
-**不自己逐行读写**，而是经 bash 委托本地 **Cline CLI**（便宜的 `qwen-max` + diffs-only）：
+### 1.1 委托 Cline 省 token（主脑 + 本地手）
+对于多文件编码、脚本调试、浏览器自动化这类重活，OpenClaw 主脑
+**不自己逐行读写整个代码库**，而是经 bash 委托本地 **Cline CLI**（在本地做 diffs-only 改动）：
 ```bash
-cline -c "<目标仓库>" -m qwen-max "<一句话任务>"
+cline -c "<目标仓库>" "<一句话任务>"
 ```
+> Cline 用其 `providers.json` 里配置的模型（当前与主脑同为 `qwen3.7-max-2026-05-17`），
+> **不要加 `-m`**（会覆盖配置导致出错）。省 token 的关键是：文件级改动在 Cline 本地完成，
+> 不把整库内容读进主脑上下文。
 主脑只下达任务、读回摘要、向用户汇报，**不把整个代码库读进上下文** —— 这是省 token 的关键。
 委托规则写在工作区 `TOOLS.md`，Cline 全局规范在 `~/Documents/Cline/Rules/`。
 

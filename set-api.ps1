@@ -1,14 +1,14 @@
 ﻿<#
 .SYNOPSIS  快速全局设置 API：key / 模型名称 / 网站(baseUrl)。支持「提供方档案」一键切换。
 .DESCRIPTION
-  provider 固定为 openai（OpenAI 兼容端点 / openai-responses 类型不变，无需改）。
+  provider 固定为 openai；api=openai-completions 命门不变（改成 responses 会让工具/技能 400 失败）。
   仅改三样：API key、默认模型、baseUrl（网站）。改动前自动备份，改动后可自测连通性。
 
   「提供方档案」：把多家厂商（如 dashscope / deepseek / openai 官方）的 baseUrl+key+model
   存成命名档案，一条命令切换，免去反复输入。档案存于 .secrets\providers.json（已 gitignore）。
 .EXAMPLE  .\set-api.ps1 -Show
-.EXAMPLE  .\set-api.ps1 -Model qwen3.7-max-2026-06-08
-.EXAMPLE  .\set-api.ps1 -BaseUrl "https://dashscope.aliyuncs.com/compatible-mode/v1" -Key "sk-xxx" -Model qwen-max -Test
+.EXAMPLE  .\set-api.ps1 -Model qwen3.7-max-2026-05-17
+.EXAMPLE  .\set-api.ps1 -BaseUrl "https://dashscope.aliyuncs.com/compatible-mode/v1" -Key "sk-xxx" -Model qwen3-max-2026-01-23 -Test
 .EXAMPLE  .\set-api.ps1 -Save dashscope          # 把当前配置存成档案 dashscope
 .EXAMPLE  .\set-api.ps1 -Profile dashscope       # 一键切回 dashscope 档案
 .EXAMPLE  .\set-api.ps1 -List
