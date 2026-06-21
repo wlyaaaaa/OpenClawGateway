@@ -90,6 +90,15 @@ if ($pwMachine) {
     throw "Missing OPENCLAW_GATEWAY_PASSWORD. Cannot proceed."
 }
 
+# ── Step 2b: Set OpenClaw service environment variables at Machine level ─
+Log "--- Setting OpenClaw service environment variables at Machine level ---"
+[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_MARKER', 'openclaw', 'Machine')
+[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_KIND', 'gateway', 'Machine')
+[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_VERSION', '2026.6.8', 'Machine')
+[System.Environment]::SetEnvironmentVariable('OPENCLAW_WINDOWS_TASK_NAME', 'OpenClaw Gateway', 'Machine')
+[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_MANAGED_ENV_KEYS', 'GEMINI_API_KEY,GOOGLE_API_KEY,HIMALAYA_EMAIL,HIMALAYA_IMAP_HOST,HIMALAYA_IMAP_PORT,HIMALAYA_PASSWORD,HIMALAYA_SMTP_HOST,HIMALAYA_SMTP_PORT', 'Machine')
+Log "[OK] Set all OpenClaw service environment variables at Machine level"
+
 # ── Step 3: Validate openclaw.json auth config ───────────────────────────
 $configPath = 'C:\Users\10979\.openclaw\openclaw.json'
 if (Test-Path $configPath) {
@@ -210,10 +219,10 @@ try {
     Log "[INFO] No existing task to remove"
 }
 
-# Action: run the VBScript launcher (guarantees zero window)
+# Action: run the node.exe directly (runs hidden in Session 0/S4U)
 $action = New-ScheduledTaskAction `
-    -Execute 'wscript.exe' `
-    -Argument "`"$vbsPath`"" `
+    -Execute 'C:\Program Files\nodejs\node.exe' `
+    -Argument 'C:\Users\10979\AppData\Roaming\npm\node_modules\openclaw\dist\index.js gateway --port 18789' `
     -WorkingDirectory (Split-Path $GatewayCmdPath -Parent)
 
 # Trigger: BOOT trigger (runs before any user logs in)
@@ -257,7 +266,7 @@ Log "  LogonType: S4U (no interactive window, no stored password needed)"
 Log "  RunLevel:  Highest"
 Log "  Hidden:    Yes"
 Log "  Restart:   On failure, ${RestartDelaySeconds}s interval, max $MaxRestartCount retries"
-Log "  Action:    wscript.exe → openclaw_run_hidden.vbs → gateway.cmd"
+Log "  Action:    node.exe directly (Job Object managed)"
 
 # ── Step 7: Verify the registration ─────────────────────────────────────
 Log "--- Verifying registration ---"
