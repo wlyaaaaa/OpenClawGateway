@@ -138,7 +138,7 @@ Set shell = CreateObject("WScript.Shell")
 ' (Task Scheduler in SYSTEM context loads Machine-level env vars automatically)
 
 ' Run gateway.cmd completely hidden (windowStyle=0), do NOT wait for exit (False)
-shell.Run """$($GatewayCmdPath.Replace('\','\\'))""", 0, False
+shell.Run """$($GatewayCmdPath.Replace('\','\\'))""", 0, True
 
 Set shell = Nothing
 "@
