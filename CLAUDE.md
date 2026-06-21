@@ -10,7 +10,7 @@
 - 用户给"无须审批立刻执行/root/自行决策"时 → 直接干，不要反复提问。
 
 ## 1. 这套体系是什么
-本机 **OpenClaw v2026.6.8**（个人智能体网关，昵称"小龙虾"）+ 三个协作件：
+本机 **OpenClaw v2026.6.9**（个人智能体网关，昵称"小龙虾"）+ 三个协作件：
 - **OpenClaw**：主脑网关。配置在 `C:\Users\10979\.openclaw\`（`openclaw.json` 配置、`workspace\` 指令+skills、`auth-profiles.json` 密钥）。loopback:18789。
 - **Cline**（`C:\Users\10979\.cline\`，CLI 全局装）：OpenClaw 的**廉价编码手**。真实配置在 `data\settings\providers.json → providers.openai-compatible.settings`（不是 globalState！）。
 - **WeFlow**（`C:\Program Files\WeFlow\WeFlow.exe`，API 在 `127.0.0.1:5031`）：读微信消息。bridge 在 `E:\WeFlowBridge`（公开仓库），token 在其 `.env`。
@@ -27,9 +27,9 @@
 | `E:\OpenClawBackup` | openclaw-backup (**private**) | OpenClaw config+workspace 云备份（含密钥/人格/记忆，恢复用） |
 
 ## 3. 当前模型/端点状态（易变，不写死进公开文档）
-- OpenClaw 主模型 = `qwen3.7-max-2026-05-17`（**手机+电脑默认**，用户指定）；Cline 也用同端点此模型。
+- OpenClaw 主模型 = `qwen3.7-plus`（**手机+电脑默认**，用户指定）；Cline 也用同端点此模型。
 - 端点 = 阿里云 MaaS（OpenAI 兼容）`https://ws-50ggmajfpk06feuv.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`，key 在 `~/.openclaw/config.yml` 与 `auth-profiles.json`。
-- 已注册：0520 / 0517 / preview / `qwen3-max-2026-01-23`(降级)。**qwen-max 已删**。0520 免费额度曾耗尽（用户在阿里云补额度）。
+- 已注册：0520 / 0517 / preview / `qwen3-max-2026-01-23`(降级) / `qwen3.7-plus`。**qwen-max 已删**。0520 免费额度曾耗尽（用户在阿里云补额度）。
 - 🔴 **关键修复别回退**：`models.providers.openai.api = "openai-completions"`。此端点不认 `role="tool"`，用 responses 会让**工具/技能调用 400 失败**；completions（function 角色）才行。
 - 思考 = `max`（用户要"最高思考、AI 不能太蠢"，成本次要；`adaptive` 有概率把难题误判为简单而欠思考，已弃用）；`contextPruning ttl=30m`（只裁旧工具输出，不丢对话）。临时降挡用 `tools\set-thinking.ps1`。
 - **省 token 调优（2026-06-21）**：`contextTokens` 全模型 **96000→64000**（更早压缩，单次请求 worst-case ~128K→~64K；历史累积是请求 token 大头，非 dreaming）；`dreaming.model=qwen3-max-2026-01-23`（后台巩固用便宜模型）；关 `googlechat` 插件（省工具定义）；workspace 指令文件已瘦身 44%。MaaS 端点不返回 cached_tokens，前缀缓存无效（无解）。

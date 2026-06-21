@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 #  OpenClaw Gateway Auto-Update Helper (channel-aware, China-resilient)
 #  - Reads update.channel from config (stable/beta/dev) -> npm dist-tag
 #  - Updates ONLY the npm package (no `openclaw update` doctor), so the

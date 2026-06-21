@@ -3,10 +3,10 @@
     "defaults": {
       "workspace": "C:\\Users\\10979\\.openclaw\\workspace",
       "model": {
-        "primary": "openai/qwen3.7-max-2026-05-17"
+        "primary": "openai/qwen3.7-plus"
       },
       "models": {
-        "openai/qwen3.7-max-2026-05-17": {},
+        "openai/qwen3.7-plus": {},
         "openai/qwen3-max-2026-01-23": {}
       },
       "imageQuality": "auto",
@@ -318,8 +318,8 @@
         "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "models": [
           {
-            "id": "qwen3.7-max-2026-05-17",
-            "name": "Qwen3.7 Max (最强推理)",
+            "id": "qwen3.7-plus",
+            "name": "qwen3.7-plus",
             "reasoning": true,
             "input": [
               "text",

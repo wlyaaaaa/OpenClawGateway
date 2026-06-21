@@ -40,7 +40,7 @@ E:\OpenClawGateway\
 > provider 固定 `openai`；**`api=openai-completions` 命门不改**（改成 responses 会让工具/技能 400 失败）。只动 key、模型、baseUrl。
 ```powershell
 .\set-api.ps1 -Show                                          # 看当前
-.\set-api.ps1 -Model qwen3.7-max-2026-05-17                  # 只换模型
+.\set-api.ps1 -Model qwen3.7-plus                              # 只换模型
 .\set-api.ps1 -BaseUrl "https://xxx/v1" -Key "sk-xxx" -Model m -Test   # 全换 + 连通性自测
 ```
 **提供方档案（优化）**：多家厂商配置存名一键切换，免反复输入。
@@ -91,7 +91,7 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 ### `switch-model.ps1` — 切换默认模型
 ```powershell
 .\tools\switch-model.ps1 -List                                   # 查看当前与已注册模型
-.\tools\switch-model.ps1 -Model qwen3.7-max-2026-05-17 -Thinking max
+.\tools\switch-model.ps1 -Model qwen3.7-plus -Thinking max
 .\tools\switch-model.ps1 -Model qwen4-max-2026-12-01 -Register   # 新模型上线：登记+切换
 ```
 | 参数 | 说明 |

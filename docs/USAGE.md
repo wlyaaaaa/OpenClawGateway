@@ -1,7 +1,7 @@
 # 日常使用指南
 
-> 适配：OpenClaw v2026.6.8 + DashScope/Qwen。
-> **默认即最强**：默认模型 `qwen3.7-max-2026-05-17`（手机+电脑统一）+ 思考等级 `max`（追求能力，不为省钱妥协）。
+> 适配：OpenClaw v2026.6.9 + DashScope/Qwen。
+> **默认即最强**：默认模型 `qwen3.7-plus`（手机+电脑统一）+ 思考等级 `max`（追求能力，不为省钱妥协）。
 > 当前 API **已启用（ON）**，机器人可直接用；想零花费时 `api.ps1 off` 回安全模式（清空 key）。
 
 ## 0. 开始使用
@@ -16,7 +16,7 @@ powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\enable-openclaw-api.
 - 临时换模型/降思考（省 token 或加速）用斜杠命令或脚本：
 ```powershell
 .\tools\switch-model.ps1 -Model qwen3-max-2026-01-23 -Thinking medium   # 临时换轻量
-.\tools\switch-model.ps1 -Model qwen3.7-max-2026-05-17 -Thinking max     # 切回最强
+.\tools\switch-model.ps1 -Model qwen3.7-plus -Thinking max     # 切回最强
 ```
 - **新模型上线**（阿里出新版）时：`.\tools\switch-model.ps1 -Model <新id> -Register`。
 

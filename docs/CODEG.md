@@ -99,7 +99,7 @@ Cline 一调用工具就报：
    - Provider = `OpenAI Compatible`
    - API URL = `https://ws-50ggmajfpk06feuv.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
    - API Key = `<DashScope/MaaS key（sk-ws-…）>`
-   - Model = `qwen3.7-max-2026-05-17`（⚠️ 别用默认占位的 `claude-sonnet-4-5`，该端点没有此模型）
+   - Model = `qwen3.7-plus`（⚠️ 别用默认占位的 `claude-sonnet-4-5`，该端点没有此模型）
    - 也可在「环境变量」里注入 `OPENAI_BASE_URL` / `OPENAI_API_KEY`（与上面一致）。
 5. **用 Cline 这个 agent 发任务**（切勿用 OpenClaw ACP agent）。
 
@@ -123,7 +123,7 @@ Cline 一调用工具就报：
 |------|------|------|
 | `Authentication required: Call authenticate before creating a session`（Cline 下） | openclaw-bridge 没带网关密码 | 在 MCP env 加 `OPENCLAW_GATEWAY_PASSWORD`（或跑 setup 脚本） |
 | `ACP bridge mode does not support per-session MCP servers`（OpenClaw 下） | 用了 OpenClaw ACP agent，codeg 必发 per-session MCP | **改用 Cline**，放弃 OpenClaw agent |
-| Cline 报模型不存在 / 4xx | Model 填成 `claude-sonnet-4-5` 但端点是 Qwen | Model 改 `qwen3.7-max-2026-05-17` |
+| Cline 报模型不存在 / 4xx | Model 填成 `claude-sonnet-4-5` 但端点是 Qwen | Model 改 `qwen3.7-plus` |
 | MCP「未检测到本地 MCP」 | Cline 生效配置为空 | 跑 setup 脚本写回，再点「刷新」 |
 | 网关 18789 未响应 | Gateway 计划任务没起 | `Start-ScheduledTask 'OpenClaw Gateway'` |
 
