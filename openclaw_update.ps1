@@ -1,4 +1,4 @@
-﻿# =====================================================================
+# =====================================================================
 #  OpenClaw Gateway Auto-Update Helper (channel-aware, China-resilient)
 #  - Reads update.channel from config (stable/beta/dev) -> npm dist-tag
 #  - Updates ONLY the npm package (no `openclaw update` doctor), so the
@@ -71,15 +71,12 @@ try {
     if ($tg -match '\*') { Log "[SELF-HEAL][WARN] telegram allowFrom 含 '*'(疑被 doctor 补回)，请手动收敛" }
     if (((& openclaw config validate 2>&1) | Out-String) -match 'invalid') { Log "[SELF-HEAL][ERR] 更新后 config 无效，请检查" }
 
-    # 4. Restart the Gateway task to load the new build
+    # 4. Restart the Gateway task to load the new build using the safe WMI escape helper
     if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-        $p = (Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -First 1).OwningProcess
-        Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }
-        Start-Sleep -Seconds 3
-        Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 10
-        Log "restarted '$taskName'"
+        Log "Spawning async gateway restart helper via restart_gateway.ps1..."
+        $restartScript = Join-Path $root 'tools\restart_gateway.ps1'
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $restartScript
+        Log "Async restart process spawned successfully."
     } else { Log "[WARN] task '$taskName' not found; skip restart" }
 
     # 5. Health check

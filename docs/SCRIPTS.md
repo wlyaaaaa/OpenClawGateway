@@ -19,7 +19,8 @@ E:\OpenClawGateway\
     ├── backup-config.ps1               # 备份全部配置与密钥
     ├── restore-config.ps1              # 从备份恢复
     ├── status.ps1                      # 一屏状态面板
-    └── build_docs_pdf.py               # 文档导出 PDF（白色纯绿主题）
+    ├── build_docs_pdf.py               # 文档导出 PDF（白色纯绿主题）
+    └── restart_gateway.ps1             # 服务：异步安全重启网关（脱离进程树防自杀卡死）
 ```
 
 ---
@@ -131,6 +132,12 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 .\tools\setup-codeg-bridge.ps1   # 把带网关密码的 openclaw-bridge MCP 写进 Cline 生效配置 + 探活
 ```
 用于 codeg 控制台经 Cline 调用 OpenClaw（ACP 直连走不通）。详见 [CODEG.md](CODEG.md)。
+
+### `restart_gateway.ps1` — 异步安全重启网关
+```powershell
+.\tools\restart_gateway.ps1      # 异步安全重启网关计划任务
+```
+由于 Windows 计划任务的强杀机制，直接在 OpenClaw 内核中或在子进程中运行 `/End` 会立即终止运行中的代码，从而导致无法继续执行随后的 `/Run`。该脚本通过 WMI 机制（`Invoke-WmiMethod`）在独立于当前计划任务进程树的后台拉起一个带有延迟的重启命令，安全且彻底地实现网关服务重新加载。
 
 ---
 

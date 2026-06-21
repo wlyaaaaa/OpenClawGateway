@@ -50,6 +50,7 @@
 
 ## 6. 踩过的坑（务必知道）
 - **PowerShell 5.1 跑含中文的 .ps1 必须 UTF-8 BOM**，否则按 GBK 解析报错。新建 .ps1 后用 .NET `UTF8Encoding($true)` 转 BOM。
+- **智能体自重启死锁**：不能直接运行 `openclaw gateway restart`，会因 schtasks /End 强杀父进程导致后续命令无法执行。必须运行 `powershell -File E:\OpenClawGateway\tools\restart_gateway.ps1`，其通过 WMI 机制（`Invoke-WmiMethod`）脱离进程树在后台安全重启。
 - **改 openclaw.json / cline providers.json 用 Python**（PowerShell ConvertTo-Json 会损坏结构、深度截断）。
 - 模型 403 多半是**快速连发限流**，加 2s 间隔重测往往就 OK。
 - `openclaw cron delete` 需设备 scope 审批；disable dreaming + 重启即可移除其 cron。
