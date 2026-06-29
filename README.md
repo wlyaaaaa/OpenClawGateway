@@ -68,7 +68,7 @@ E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
 | [docs/AUDIT.md](docs/AUDIT.md) | 深度审计记录 |
 
 ## ⚙️ 当前状态（参考）
-- 版本 v2026.6.9（stable）｜ 默认模型 `qwen3.7-plus` + 思考 `max`（最高）
+- 版本 v2026.6.10（stable）｜ 默认模型 `qwen3.7-plus` + 思考 `max`（最高）
 - 网关 loopback:18789，堆 1536MB｜ API：**已启用（ON）**，闲时 `api.ps1 off` 回零花费
 - 计划任务：`OpenClaw Gateway`(自启)、`Heartbeat`(15min)、`AutoPush`(每日) 均 **Ready**；
   `OpenClaw Update` **Disabled**（故意，改用 `openclaw_update.ps1` 手动+自愈，避免原生 doctor 改坏配置）
@@ -78,4 +78,4 @@ E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
 - 凭据只在 `C:\Users\10979\.openclaw\`，`secrets-backup\` 已 gitignore。
 
 ---
-基于 [OpenClaw](https://docs.openclaw.ai) v2026.6.9 原生 `daemon` / `update` 机制构建。
+基于 [OpenClaw](https://docs.openclaw.ai) v2026.6.10 原生 `daemon` / `update` 机制构建。

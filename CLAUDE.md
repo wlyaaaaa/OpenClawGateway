@@ -10,7 +10,7 @@
 - 用户给"无须审批立刻执行/root/自行决策"时 → 直接干，不要反复提问。
 
 ## 1. 这套体系是什么
-本机 **OpenClaw v2026.6.9**（个人智能体网关，昵称"小龙虾"）+ 三个协作件：
+本机 **OpenClaw v2026.6.10**（个人智能体网关，昵称"小龙虾"）+ 三个协作件：
 - **OpenClaw**：主脑网关。配置在 `C:\Users\10979\.openclaw\`（`openclaw.json` 配置、`workspace\` 指令+skills、`auth-profiles.json` 密钥）。loopback:18789。
 - **Cline**（`C:\Users\10979\.cline\`，CLI 全局装）：OpenClaw 的**廉价编码手**。真实配置在 `data\settings\providers.json → providers.openai-compatible.settings`（不是 globalState！）。
 - **WeFlow**（`C:\Program Files\WeFlow\WeFlow.exe`，API 在 `127.0.0.1:5031`）：读微信消息。bridge 在 `E:\WeFlowBridge`（公开仓库），token 在其 `.env`。

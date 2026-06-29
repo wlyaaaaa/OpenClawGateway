@@ -79,9 +79,18 @@ try {
         Log "Async restart process spawned successfully."
     } else { Log "[WARN] task '$taskName' not found; skip restart" }
 
-    # 5. Health check
-    $conn = Test-NetConnection -ComputerName '127.0.0.1' -Port $port -WarningAction SilentlyContinue
-    if ($conn.TcpTestSucceeded) { Log "[OK] gateway healthy on $port after update" }
+    # 5. Health check (polling with 15s timeout to allow async restart to complete)
+    Log "Waiting for gateway to restart and listen on port $port..."
+    $healthy = $false
+    for ($i = 1; $i -le 15; $i++) {
+        Start-Sleep -Seconds 1
+        $conn = Test-NetConnection -ComputerName '127.0.0.1' -Port $port -WarningAction SilentlyContinue
+        if ($conn.TcpTestSucceeded) {
+            $healthy = $true
+            break
+        }
+    }
+    if ($healthy) { Log "[OK] gateway healthy on $port after update" }
     else { Log "[ERROR] port $port unresponsive after update — see C:\Users\10979\.openclaw\gateway.log" }
 }
 catch {

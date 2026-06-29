@@ -1,6 +1,6 @@
 # 日常使用指南
 
-> 适配：OpenClaw v2026.6.9 + DashScope/Qwen。
+> 适配：OpenClaw v2026.6.10 + DashScope/Qwen。
 > **默认即最强**：默认模型 `qwen3.7-plus`（手机+电脑统一）+ 思考等级 `max`（追求能力，不为省钱妥协）。
 > 当前 API **已启用（ON）**，机器人可直接用；想零花费时 `api.ps1 off` 回安全模式（清空 key）。
 
