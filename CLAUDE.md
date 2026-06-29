@@ -34,7 +34,7 @@
 - 思考 = `max`（用户要"最高思考、AI 不能太蠢"，成本次要；`adaptive` 有概率把难题误判为简单而欠思考，已弃用）；`contextPruning ttl=30m`（只裁旧工具输出，不丢对话）。临时降挡用 `tools\set-thinking.ps1`。
 - **省 token 调优（2026-06-21）**：`contextTokens` 全模型 **96000→64000**（更早压缩，单次请求 worst-case ~128K→~64K；历史累积是请求 token 大头，非 dreaming）；`dreaming.model=qwen3-max-2026-01-23`（后台巩固用便宜模型）；关 `googlechat` 插件（省工具定义）；workspace 指令文件已瘦身 44%。MaaS 端点不返回 cached_tokens，前缀缓存无效（无解）。
 - 缓存 `cacheRetention=long` 已设但此端点不返回 cached_tokens，无可测收益（无害）。
-- 切端点/模型工具：`.\set-api.ps1`（注意 PowerShell ConvertTo-Json 会损坏 models 数组，**改 openclaw.json 用 Python**）。
+- 切端点/模型工具：`.\set-api.ps1`（重构后已改为通过原生 `openclaw config patch` 进行 BOM-Free 安全合并，且直接调用 `tools\update_sqlite_profiles.py` 强行同步刷写 SQLite 数据库活跃凭据）。
 
 ## 4. 计划任务（schtasks）
 `OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日归档推送,Ready) · `OpenClaw Memory Backup`(**每日 04:00+13:00**,Ready,跑 `tools\backup-memory.ps1`：本地 `memory-backup\` 轮换 + 推私有云仓库 `wlyaaaaa/claude-memory`)。
@@ -49,9 +49,9 @@
 - 一键配置：`tools\setup-codeg-bridge.ps1`。
 
 ## 6. 踩过的坑（务必知道）
-- **PowerShell 5.1 跑含中文的 .ps1 必须 UTF-8 BOM**，否则按 GBK 解析报错。新建 .ps1 后用 .NET `UTF8Encoding($true)` 转 BOM。
+- **PowerShell 5.1 编码崩溃**：`set-api.ps1` 采用**全 ASCII 英文输出**策略，彻底避开了中文编码在 GBK 系统下被误判为特殊符号（如双引号或反斜杠）的缺陷。对于其他必须写入中文的 `.ps1` 脚本，仍需保存为 UTF-8 BOM 格式。
 - **智能体自重启死锁**：不能直接运行 `openclaw gateway restart`，会因 schtasks /End 强杀父进程导致后续命令无法执行。必须运行 `powershell -File E:\OpenClawGateway\tools\restart_gateway.ps1`，其通过 WMI 机制（`Invoke-WmiMethod`）脱离进程树在后台安全重启。
-- **改 openclaw.json / cline providers.json 用 Python**（PowerShell ConvertTo-Json 会损坏结构、深度截断）。
+- **修改 JSON/SQLite 配置**：修改 `openclaw.json` 首选原生 `openclaw config patch` 进行安全合并；对于 `auth-profiles.json` 等配置文件，写回时必须使用 `.NET` 写入无 BOM 格式的 UTF-8 以防 JSON 报错。对于 SQLite 活跃凭据，使用 `tools\update_sqlite_profiles.py` 直接操纵数据库修改。
 - 模型 403 多半是**快速连发限流**，加 2s 间隔重测往往就 OK。
 - `openclaw cron delete` 需设备 scope 审批；disable dreaming + 重启即可移除其 cron。
 - 公开仓库推送前必扫机密（模式见 `tools/auto-archive-push.ps1`：TG token / DashScope key 前缀 / 网关密码 / 私钥头）。

@@ -3,6 +3,9 @@
 所有脚本均为 **PowerShell**，编码 UTF-8 (BOM)。涉及计划任务/系统配置的请以
 **管理员**身份运行。脚本分两类：根目录的「服务生命周期」脚本，`tools\` 下的「配置助手」脚本。
 
+> [!NOTE]
+> 关于大模型 API Key 凭据管理的详细细节、SQLite 同步原理解析以及安全模式的深度使用指南，请参阅独立的专题文档：[API 凭据管理与安全模式指南](API_KEY_MANAGEMENT.md)。
+
 ```
 E:\OpenClawGateway\
 ├── api.ps1                             # ★快速：一键开关 API（on/off/toggle/status）
