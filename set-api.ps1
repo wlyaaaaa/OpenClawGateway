@@ -1,17 +1,9 @@
 ﻿<#
 .SYNOPSIS  快速全局设置 API：key / 模型名称 / 网站(baseUrl)。支持「提供方档案」一键切换。
 .DESCRIPTION
-  provider 固定为 openai；api=openai-completions 命门不变（改成 responses 会让工具/技能 400 失败）。
+  provider 固定为 openai；api=openai-completions 命门不变。
   仅改三样：API key、默认模型、baseUrl（网站）。改动前自动备份，改动后可自测连通性。
-
-  「提供方档案」：把多家厂商（如 dashscope / deepseek / openai 官方）的 baseUrl+key+model
-  存成命名档案，一条命令切换，免去反复输入。档案存于 .secrets\providers.json（已 gitignore）。
-.EXAMPLE  .\set-api.ps1 -Show
-.EXAMPLE  .\set-api.ps1 -Model qwen3.7-max-2026-05-17
-.EXAMPLE  .\set-api.ps1 -BaseUrl "https://dashscope.aliyuncs.com/compatible-mode/v1" -Key "sk-xxx" -Model qwen3-max-2026-01-23 -Test
-.EXAMPLE  .\set-api.ps1 -Save dashscope          # 把当前配置存成档案 dashscope
-.EXAMPLE  .\set-api.ps1 -Profile dashscope       # 一键切回 dashscope 档案
-.EXAMPLE  .\set-api.ps1 -List
+.EXAMPLE  .\set-api.ps1 -BaseUrl "https://dashscope.aliyuncs.com/compatible-mode/v1" -Key "sk-xxx" -Model "qwen3.7-plus" -Test
 #>
 param(
     [string]$Key,
@@ -33,9 +25,14 @@ $profPath   = Join-Path $secretsDir 'providers.json'
 
 function Read-Profiles { if (Test-Path $profPath) { Get-Content $profPath -Raw | ConvertFrom-Json } else { [pscustomobject]@{} } }
 function Mask($k) { if ([string]::IsNullOrEmpty($k)) { '(空)' } else { $k.Substring(0,[Math]::Min(8,$k.Length)) + '...(' + $k.Length + ')' } }
-function Get-CurrentKey { if (Test-Path $AUTH) { (Get-Content $AUTH -Raw | ConvertFrom-Json).profiles."${Provider}:default".key } else { '' } }
+
+function Get-CurrentKey { 
+    $k = Get-OCConfig "models.providers.$Provider.apiKey"
+    if ($k) { return $k } else { return '' }
+}
+
 function Show-Current {
-    Write-Host "`n当前 API 配置（provider=$Provider，openai 兼容端点，类型不变）:"
+    Write-Host "`n当前 API 配置（provider=$Provider，openai 兼容端点）:"
     Write-Host ("  网站 baseUrl : " + (Get-OCConfig "models.providers.$Provider.baseUrl")) -ForegroundColor Cyan
     Write-Host ("  默认模型     : " + (Get-OCConfig 'agents.defaults.model.primary')) -ForegroundColor Cyan
     Write-Host ("  API key      : " + (Mask (Get-CurrentKey))) -ForegroundColor Cyan
@@ -77,7 +74,10 @@ if ($Save) {
 
 if (-not ($BaseUrl -or $Key -or $Model)) {
     Show-Current
-    if ($Test) { Write-Host "`n连通性 (openclaw models status):" -ForegroundColor Green; & openclaw models status 2>&1 | Select-Object -First 20 }
+    if ($Test) { 
+        Write-Host "`n连通性 (openclaw models status):" -ForegroundColor Green
+        cmd /c "openclaw models status"
+    }
     return
 }
 
@@ -85,37 +85,39 @@ if (-not ($BaseUrl -or $Key -or $Model)) {
 $bak = Join-Path (Join-Path $PSScriptRoot 'secrets-backup') ("setapi-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Force $bak | Out-Null
 Copy-Item (Join-Path $OC 'openclaw.json') $bak -Force -ErrorAction SilentlyContinue
-Copy-Item $AUTH $bak -Force -ErrorAction SilentlyContinue
 Write-Info "已备份 → $bak"
 
 Stop-Gateway
-if ($BaseUrl) { Set-OCConfig "models.providers.$Provider.baseUrl" $BaseUrl }
+
+# 打造万无一失的配置大补丁
+$patchObject = [ordered]@{
+    models = @{ providers = @{ $Provider = @{} } }
+    agents = @{ defaults = @{ model = @{}; models = @{} } }
+}
+
+if ($BaseUrl) { $patchObject.models.providers.$Provider.baseUrl = $BaseUrl }
+if ($Key) { $patchObject.models.providers.$Provider.apiKey = $Key }
 if ($Model) {
     $modelId = $Model -replace '^.*/',''
-    $models = @(Get-OCConfig "models.providers.$Provider.models" | Out-String | ConvertFrom-Json)
-    if ($models.id -notcontains $modelId) {
-        Write-Step "自动登记新模型 $modelId"
-        $new = [pscustomobject]@{ id=$modelId; name=$modelId; reasoning=$true; input=@('text','image'); contextWindow=131072; contextTokens=96000; maxTokens=32768 }
-        $arr = @($models) + $new
-        $patch = @{ models = @{ providers = @{ $Provider = @{ models = $arr } } } } | ConvertTo-Json -Depth 100
-        $pf = Join-Path $OC 'setapi-reg.patch.json'; $patch | Set-Content $pf -Encoding utf8
-        & openclaw config patch --file $pf | Out-Null; Remove-Item $pf -ErrorAction SilentlyContinue
-    }
-    Set-OCConfig 'agents.defaults.model.primary' "$Provider/$modelId"
+    $targetKey = "$Provider/$modelId"
+    $patchObject.agents.defaults.model.primary = $targetKey
+    $patchObject.agents.defaults.models.$targetKey = @{}
 }
-if ($Key) {
-    $auth = if (Test-Path $AUTH) { Get-Content $AUTH -Raw | ConvertFrom-Json } else { [pscustomobject]@{ version=1; profiles=[pscustomobject]@{} } }
-    if (-not $auth.profiles."${Provider}:default") {
-        $auth.profiles | Add-Member -NotePropertyName "${Provider}:default" -NotePropertyValue ([pscustomobject]@{ type='api_key'; provider=$Provider; key='' }) -Force
-    }
-    $auth.profiles."${Provider}:default".key = $Key
-    ($auth | ConvertTo-Json -Depth 20) | Set-Content $AUTH -Encoding utf8
-    Write-Step "已更新 API key"
-}
+
+# 将大补丁整合成单次下发
+$finalPatch = $patchObject | ConvertTo-Json -Depth 10
+$pf = Join-Path $PSScriptRoot 'setapi-unified.patch.json'
+$finalPatch | Set-Content $pf -Encoding utf8
+& openclaw config patch --file $pf | Out-Null
+Remove-Item $pf -ErrorAction SilentlyContinue
+Write-Step "配置补丁已成功安全合并"
+
 if (-not $NoRestart) { Start-Gateway }
 Show-Current
+
+# 核心修复：使用 cmd /c 运行测试，彻底隔离 stderr，防止 PS 5.1 误报终止
 if ($Test) {
     Write-Host "`n连通性测试 (openclaw models status):" -ForegroundColor Green
-    & openclaw models status 2>&1 | Select-Object -First 20
+    cmd /c "openclaw models status"
 }
 Write-Host "`n✅ 设置完成。" -ForegroundColor Green
