@@ -13,6 +13,7 @@ codeg-backup-*
 secrets-backup-*
 memory-backup/
 gemini-memory-backup/
+codex-memory-backup/
 
 # ── 机密：绝对不可提交 ──
 secrets-backup/
