@@ -1,5 +1,5 @@
 ﻿# =====================================================================
-#  backup-memory.ps1 — 备份 Claude Code 记忆（.claude memory）
+#  backup-memory.ps1 — 备份 Claude Code 记忆（.claude projects memory）
 # ---------------------------------------------------------------------
 #  记忆含本项目运维上下文（路径/模型/安全态等，非原始密钥），
 #  备份到本地时间戳目录并保留最近 N 份；**不入公开仓库**（memory-backup/ 已 gitignore）。
@@ -8,7 +8,7 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$src       = "C:\Users\10979\.claude\projects\E--RamdiskGuardian\memory"
+$src       = "C:\Users\10979\.claude\projects"
 $root      = "E:\OpenClawGateway\memory-backup"
 $cloudRepo = "E:\ClaudeMemoryBackup"   # 私有云备份仓库 wlyaaaaa/claude-memory
 $keep      = 30
@@ -23,14 +23,30 @@ function Log([string]$m) {
 }
 
 Log "=== Memory Backup — start ==="
-if (-not (Test-Path $src)) { Log "[ERROR] 记忆目录不存在: $src"; exit 1 }
+if (-not (Test-Path $src)) { Log "[ERROR] Claude projects 目录不存在: $src"; exit 1 }
+
+$memoryDirs = Get-ChildItem -LiteralPath $src -Directory |
+    ForEach-Object {
+        $memoryPath = Join-Path $_.FullName 'memory'
+        if (Test-Path $memoryPath) {
+            [PSCustomObject]@{
+                ProjectName = $_.Name
+                MemoryPath  = $memoryPath
+            }
+        }
+    }
+if (-not $memoryDirs) { Log "[ERROR] 未找到任何 Claude project memory 目录: $src"; exit 1 }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $dst = Join-Path $root $stamp
 New-Item -ItemType Directory -Path $dst -Force | Out-Null
-Copy-Item -Path (Join-Path $src '*') -Destination $dst -Recurse -Force
-$n = (Get-ChildItem $dst -Recurse -File).Count
-Log "[OK] 已备份 $n 个记忆文件 -> $dst"
+foreach ($entry in $memoryDirs) {
+    $projectDst = Join-Path $dst (Join-Path $entry.ProjectName 'memory')
+    New-Item -ItemType Directory -Path $projectDst -Force | Out-Null
+    Copy-Item -Path (Join-Path $entry.MemoryPath '*') -Destination $projectDst -Recurse -Force
+}
+$n = (Get-ChildItem $dst -Recurse -File -Filter '*.md').Count
+Log "[OK] 已备份 $($memoryDirs.Count) 个项目 / $n 个记忆文件 -> $dst"
 
 # 轮换：仅保留最近 $keep 份
 $dirs = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending
@@ -47,8 +63,16 @@ if (Test-Path (Join-Path $cloudRepo '.git')) {
     $eapSave = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        # 复制有变化的 .md（不删 README；robocopy 退出码 <8 均为成功）
-        robocopy $src $cloudRepo *.md /NJH /NJS /NFL /NDL 2>$null | Out-Null
+        # 迁移到 project/memory/*.md 结构，避免多个 MEMORY.md 互相覆盖；README 保留在根目录。
+        Get-ChildItem -LiteralPath $cloudRepo -File -Filter '*.md' |
+            Where-Object { $_.Name -ne 'README.md' } |
+            Remove-Item -Force
+
+        foreach ($entry in $memoryDirs) {
+            $projectCloudDir = Join-Path $cloudRepo (Join-Path $entry.ProjectName 'memory')
+            New-Item -ItemType Directory -Path $projectCloudDir -Force | Out-Null
+            robocopy $entry.MemoryPath $projectCloudDir *.md /MIR /NJH /NJS /NFL /NDL 2>$null | Out-Null
+        }
         $changed = (& git -C $cloudRepo status --porcelain 2>$null) -join ''
         if ($changed) {
             & git -C $cloudRepo add -A 2>$null | Out-Null
