@@ -29,8 +29,8 @@ powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
 | `OpenClaw Gateway` | 开机 +30s | VBS→gateway.cmd | 开机自启，常驻启用 (Ready) |
 | `OpenClaw Heartbeat` | 每 15 分钟 | openclaw_heartbeat.ps1 | 端口看门狗 (Ready) |
 | `OpenClaw Update` | 每周 04:00 | openclaw_update.ps1 | 自动更新，**Disabled（故意，改用脚本手动+自愈）** |
-| `OpenClawGateway AutoPush` | 每日 | tools\auto-archive-push.ps1 | 归档+机密扫描后推 GitHub (Ready) |
-| `OpenClaw Memory Backup` | 每日 **04:00 + 13:00** | backup-memory.ps1 + backup-openclaw.ps1 | 双备份：Claude 记忆→私有 claude-memory；OpenClaw 配置+工作区→私有 openclaw-backup (Ready) |
+| `OpenClawGateway AutoPush` | 每日 21:15 | tools\auto-archive-push.ps1 | 归档+机密扫描后推 GitHub (Ready) |
+| `OpenClaw Memory Backup` | 每日 **20:20 + 22:20** | backup-memory.ps1 + backup-openclaw.ps1 | 双备份：Claude 记忆→私有 claude-memory；OpenClaw 配置+工作区→私有 openclaw-backup (Ready) |
 
 ```powershell
 # 查看
@@ -65,10 +65,10 @@ Register-ScheduledTask 'OpenClaw Update' -Action $au -Trigger $tu -Principal $pr
 ## 5. 备份策略
 ```powershell
 .\tools\backup-config.ps1                 # 配置 + 密钥 + credentials
-.\tools\backup-memory.ps1                 # Claude 记忆（计划任务每日 04:00+13:00 自动跑）
+.\tools\backup-memory.ps1                 # Claude 记忆（计划任务每日 20:20+22:20 自动跑）
 ```
 重点备份：`openclaw.json`、`auth-profiles.json`、`config.yml`、`.env`、`credentials\`、`gateway.cmd`。
-记忆备份双保险：①本地 `memory-backup\<时间戳>\`（gitignore，留 30 份）②私有云仓库 **`wlyaaaaa/claude-memory`**（已脱敏，本地工作目录 `E:\ClaudeMemoryBackup`）。计划任务每日 04:00+13:00 自动两者都做。
+记忆备份双保险：①本地 `memory-backup\<时间戳>\`（gitignore，留 30 份）②私有云仓库 **`wlyaaaaa/claude-memory`**（已脱敏，本地工作目录 `E:\ClaudeMemoryBackup`）。计划任务每日 20:20+22:20 自动两者都做。
 
 ### 5.1 新电脑转移（从 GitHub）
 ```powershell
@@ -83,7 +83,7 @@ git clone https://github.com/wlyaaaaa/openclaw-backup.git E:\OpenClawBackup
 Copy-Item E:\OpenClawBackup\config\*    "C:\Users\10979\.openclaw\" -Force
 Copy-Item E:\OpenClawBackup\workspace\* "C:\Users\10979\.openclaw\workspace\" -Recurse -Force
 ```
-**三仓恢复**：公开 `OpenClawGateway`（脚本/文档/模板）+ 私有 `claude-memory`（Claude 记忆）+ 私有 `openclaw-backup`（OpenClaw 配置+人格+记忆，含密钥）。计划任务 `OpenClaw Memory Backup` 每日 04:00+13:00 自动把后两者推私有云。详见 [DEPLOY.md](DEPLOY.md)。
+**三仓恢复**：公开 `OpenClawGateway`（脚本/文档/模板）+ 私有 `claude-memory`（Claude 记忆）+ 私有 `openclaw-backup`（OpenClaw 配置+人格+记忆，含密钥）。计划任务 `OpenClaw Memory Backup` 每日 20:20+22:20 自动把后两者推私有云。详见 [DEPLOY.md](DEPLOY.md)。
 
 ## 6. 故障排查
 | 现象 | 排查 |

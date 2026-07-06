@@ -5,7 +5,7 @@
 
 ## 0. 用户的工作流偏好（重要）
 - 复杂任务：**先给计划+预执行任务清单 → （除非用户明说"免审批/你有root/自行决策"，否则征求意见）→ 执行 → 给报告+完成任务清单**。
-- **归档在一处**：把计划/报告写到 `E:\OpenClawGateway\journal\<日期>.md`；由计划任务 `OpenClawGateway AutoPush` 每日自动推 GitHub（带机密扫描守卫）。
+- **归档在一处**：把计划/报告写到 `E:\OpenClawGateway\journal\<日期>.md`；由计划任务 `OpenClawGateway AutoPush` 每日 21:15 自动推 GitHub（带机密扫描守卫）。
 - **不写长期记忆**（除非用户要求）。不要把上一轮任务继续往下一轮硬塞。
 - 用户给"无须审批立刻执行/root/自行决策"时 → 直接干，不要反复提问。
 
@@ -37,7 +37,7 @@
 - 切端点/模型工具：`.\set-api.ps1`（重构后已改为通过原生 `openclaw config patch` 进行 BOM-Free 安全合并，且直接调用 `tools\update_sqlite_profiles.py` 强行同步刷写 SQLite 数据库活跃凭据）。
 
 ## 4. 计划任务（schtasks）
-`OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日归档推送,Ready) · `OpenClaw Memory Backup`(**每日 04:00+13:00**,Ready,跑 `tools\backup-memory.ps1`：本地 `memory-backup\` 轮换 + 推私有云仓库 `wlyaaaaa/claude-memory`)。
+`OpenClaw Gateway`(开机自启 S4U,**Ready**) · `OpenClaw Heartbeat`(15min,**Ready**) · `OpenClaw Update`(周更,**Disabled**=故意,改用 `openclaw_update.ps1` 手动/自愈) · `WeFlow Watchdog`(登录+15min,Ready) · `WeChat AutoStart`(登录) · `OpenClawGateway AutoPush`(每日 21:15 归档推送,Ready) · `OpenClaw Memory Backup`(**每日 20:20+22:20**,Ready,跑 `tools\backup-memory.ps1`：本地 `memory-backup\` 轮换 + 推私有云仓库 `wlyaaaaa/claude-memory`)。
 > ⚠️ **更新只走命令行**：`openclaw_update.ps1`（npm-only+自愈）；**绝不点应用内/原生 `openclaw update`**（跑 doctor 会改坏 api/白名单/gateway.cmd）。
 
 ## 5. 联想 skills（提到就触发，均 Ready+Visible）

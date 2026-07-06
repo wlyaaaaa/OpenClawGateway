@@ -4,7 +4,7 @@
 #  config（openclaw.json/auth-profiles.json/config.yml/.env，含密钥）
 #  + workspace（人格/记忆/技能/脚本，排除 node_modules）
 #  → 本地 E:\OpenClawBackup → 私有仓库 wlyaaaaa/openclaw-backup。
-#  由计划任务每日 04:00 + 13:00 自动跑。**私有仓库，含密钥，切勿公开。**
+#  由计划任务每日 20:20 + 22:20 自动跑。**私有仓库，含密钥，切勿公开。**
 #  用法：powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\backup-openclaw.ps1
 # =====================================================================
 $ErrorActionPreference = 'Stop'

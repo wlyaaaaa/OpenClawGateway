@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------
 #  记忆含本项目运维上下文（路径/模型/安全态等，非原始密钥），
 #  备份到本地时间戳目录并保留最近 N 份；**不入公开仓库**（memory-backup/ 已 gitignore）。
-#  由计划任务「OpenClaw Memory Backup」在凌晨 4 点 + 白天 13 点各跑一次。
+#  由计划任务「OpenClaw Memory Backup」在晚间 20:20 + 22:20 各跑一次。
 #  用法：powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\backup-memory.ps1
 # =====================================================================
 $ErrorActionPreference = 'Stop'
