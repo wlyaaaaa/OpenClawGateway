@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 
 $src       = "C:\Users\10979\.claude\projects"
 $root      = "E:\Projects\Tools\OpenClawGateway\memory-backup"
-$cloudRepo = "E:\ClaudeMemoryBackup"   # 私有云备份仓库 wlyaaaaa/claude-memory
+$cloudRepo = "E:\Projects\Backups\claude-memory"   # 私有云备份仓库 wlyaaaaa/claude-memory
 $keep      = 30
 $log       = "E:\Projects\Tools\OpenClawGateway\logs\backup-memory.log"
 

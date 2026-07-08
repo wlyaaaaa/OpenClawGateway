@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 
 $src       = "C:\Users\10979\.gemini"
 $root      = "E:\Projects\Tools\OpenClawGateway\gemini-memory-backup"
-$cloudRepo = "E:\GeminiMemoryBackup"   # private repo: wlyaaaaa/gemini-memory
+$cloudRepo = "E:\Projects\Backups\gemini-memory"   # private repo: wlyaaaaa/gemini-memory
 $keep      = 30
 $log       = "E:\Projects\Tools\OpenClawGateway\logs\backup-gemini-memory.log"
 
