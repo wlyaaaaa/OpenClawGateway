@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简历 — 吴乐阳</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+    <nav>
+        <div class="container nav-inner">
+            <a href="index.html" class="logo">&lt;wly /&gt;</a>
+            <ul class="nav-links">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="portfolio.html">项目</a></li>
+                <li><a href="resume.html" class="active">简历</a></li>
+                <li><a href="contact.html">联系</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container page-section resume-page">
+        <header class="resume-header fade-in">
+            <h1 class="sec-name">吴乐阳 <span class="name-eng">Yang Wu</span></h1>
+            <p class="sec-subtitle">Gap Year · AI 大模型应用方向</p>
+            <div class="contact-row">
+                <a href="mailto:wlyaaaaaa@gmail.com"><i class="fas fa-envelope"></i> wlyaaaaaa@gmail.com</a>
+                <span class="divider">·</span>
+                <a href="https://github.com/wlyaaaaaa" target="_blank" rel="noopener"><i class="fab fa-github"></i> @wlyaaaaaa</a>
+                <span class="divider">·</span>
+                <a href="#"><i class="fas fa-map-marker-alt"></i> 安徽淮南</a>
+            </div>
+        </header>
+
+        <section class="resume-card fade-in" style="animation-delay:0.2s">
+            <h3><i class="fas fa-graduation-cap"></i> 教育背景</h3>
+            <ul class="resume-list">
+                <li><strong>金融学</strong> — 非计算机科班</li>
+            </ul>
+        </section>
+
+        <section class="resume-card fade-in" style="animation-delay:0.4s">
+            <h3><i class="fas fa-briefcase"></i> 工作经历</h3>
+            <div class="exp-item">
+                <div class="exp-header">
+                    <span class="company">某互联网公司</span>
+                    <span class="period">2023.9 – 2025.7</span>
+                </div>
+                <p class="role">Java 工程师 · 2年</p>
+                <ul class="resume-list">
+                    <li>负责后端开发与系统维护，积累了扎实的工程落地经验</li>
+                    <li>互联网行业满 3 年经验后选择 Gap Year 转型</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="resume-card fade-in" style="animation-delay:0.6s">
+            <h3><i class="fas fa-book-open"></i> 学习计划</h3>
+            <div class="exp-item">
+                <div class="exp-header">
+                    <span class="company">黑马程序员 · 狂野 AI 大模型线上班</span>
+                    <span class="period">2026.6.24 – 现在 (Gap Year)</span>
+                </div>
+                <p class="role">在家系统学习 · "教什么学什么"</p>
+                <ul class="resume-list">
+                    <li>AI 大模型应用开发全流程</li>
+                    <li>重点：端到端系统能力（非"调 API"）</li>
+                </ul>
+            </div>
+        </section>
+
+        <section class="resume-card fade-in" style="animation-delay:0.8s">
+            <h3><i class="fas fa-code"></i> 技术栈</h3>
+            <ul class="tags-wrap">
+                <span class="tag">Java</span>
+                <span class="tag">Python</span>
+                <span class="tag">TypeScript/JS</span>
+                <span class="tag">Docker</span>
+                <span class="tag">Grafana</span>
+                <span class="tag">Claude Code</span>
+                <span class="tag">OpenClaw (AI Agent)</span>
+                <span class="tag">SQL</span>
+            </ul>
+        </section>
+
+        <section class="resume-card fade-in" style="animation-delay:1s">
+            <h3><i class="fas fa-bullseye"></i> 职业目标</h3>
+            <ul class="resume-list">
+                <li><strong>短期</strong>：完成狂野 AI 课程，2026.10 月底赴杭州</li>
+                <li><strong>中期</strong>：杭州私企/AIGC 团队，月薪 20-25k</li>
+                <li><strong>长期</strong>：苏州买房买车，持续深耕 AI 大模型方向</li>
+            </ul>
+        </section>
+
+        <section class="resume-card fade-in" style="animation-delay:1.2s">
+            <h3><i class="fas fa-globe"></i> 个人项目 (GitHub)</h3>
+            <ul class="project-list-small">
+                <li><a href="https://github.com/wlyaaaaaa/TimeAudit" target="_blank" rel="noopener"><strong>TimeAudit</strong> — 主力，多 worker 遥测 + Grafana + Docker</a></li>
+                <li><a href="https://github.com/wlyaaaaaa/OpenClawGateway" target="_blank" rel="noopener">OpenClawGateway — AI 网关运维系统</a></li>
+                <li><strong>EGO</strong> (私有) — 个人知识库，构思中</li>
+                <li>RamdiskGuardian / Scripts / WeFlowBridge</li>
+            </ul>
+        </section>
+
+        <section style="margin-top:2rem; text-align:center;" class="fade-in" style="animation-delay:1.4s">
+            <a href="contact.html" class="btn btn-primary"><i class="fas fa-paper-plane"></i> 联系我聊聊</a>
+            <br><br>
+            <button id="export-pdf-btn" class="btn btn-outline" onclick="window.print()"><i class="fas fa-file-pdf"></i> 导出 PDF</button>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <span>&copy; 2026 吴乐阳 — Built with care.</span>
+        </div>
+    </footer>
+
+    <script>
+        // PDF export prompt
+        window.addEventListener('load', () => {
+            document.getElementById('export-pdf-btn')?.addEventListener('click', function(e) { 
+                // Native print dialog handles it
+            });
+        });
+    </script>
+</body>
+</html>

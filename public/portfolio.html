@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目 — 吴乐阳</title>
+    <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+</head>
+<body>
+    <nav>
+        <div class="container nav-inner">
+            <a href="index.html" class="logo">&lt;wly /&gt;</a>
+            <ul class="nav-links">
+                <li><a href="index.html">首页</a></li>
+                <li><a href="portfolio.html" class="active">项目</a></li>
+                <li><a href="resume.html">简历</a></li>
+                <li><a href="contact.html">联系</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container page-section">
+        <h2 class="section-title"><i class="fas fa-code-branch"></i> GitHub 项目</h2>
+        <p class="section-sub">全部在 <a href="https://github.com/wlyaaaaaa" target="_blank" rel="noopener">@wlyaaaaaa →</a></p>
+
+        <div id="project-grid" class="project-grid"></div>
+
+        <!-- 手填兜底，当 GitHub API 不可用时展示 -->
+        <div class="fallback-projects">
+            <h3 class="section-title"><i class="fas fa-database"></i> TimeAudit — 主力项目</h3>
+            <div class="card project-detail-card">
+                <p><strong>时间审计 &amp; 遥测系统</strong></p>
+                <ul class="feature-list">
+                    <li>多 Worker 采集 + Grafana Dashboard</li>
+                    <li>Docker 容器化部署</li>
+                    <li>多语言支持 (Java/Python/Go)</li>
+                </ul>
+            </div>
+
+            <h3 class="section-title" style="margin-top:2rem"><i class="fas fa-key"></i> 私有 / 构思中</h3>
+            <div class="card">
+                <ul class="feature-list">
+                    <li><strong>EGO</strong> — 个人知识库，构思阶段 (README-only)</li>
+                    <li><strong>claude-memory</strong> — AI 记忆集成文档</li>
+                    <li><strong>human-alignment-dataset-001</strong> — 加密数据集 + Prophet_Protocol</li>
+                </ul>
+            </div>
+
+            <h3 class="section-title" style="margin-top:2rem"><i class="fas fa-wrench"></i> 运维工具</h3>
+            <div class="card">
+                <ul class="feature-list">
+                    <li><strong>OpenClawGateway</strong> — 个人 AI 网关 & 记忆系统</li>
+                    <li><strong>WeFlowBridge</strong> — WeChat ↔ API 桥接</li>
+                    <li><strong>RamdiskGuardian</strong> — 内存盘数据守护</li>
+                    <li><strong>Scripts</strong> — 日常自动化脚本集</li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <span>&copy; 2026 吴乐阳 — Built with care.</span>
+        </div>
+    </footer>
+</body>
+</html>
