@@ -37,7 +37,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $scriptRoot = $PSScriptRoot
 if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $scriptRoot) { $scriptRoot = 'E:\OpenClawGateway' }
+if (-not $scriptRoot) { $scriptRoot = 'E:\Projects\Tools\OpenClawGateway' }
 
 # ── Logging ──────────────────────────────────────────────────────────────
 $logDir = Join-Path $scriptRoot 'logs'

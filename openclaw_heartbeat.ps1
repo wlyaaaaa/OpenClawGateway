@@ -1,13 +1,13 @@
 # =====================================================================
 #  OpenClaw Gateway Heartbeat Watchdog
 #  Checks if port 18789 is alive. If not, restarts the OpenClaw Gateway task.
-#  Log output: E:\OpenClawGateway\logs\openclaw_heartbeat.log
+#  Log output: E:\Projects\Tools\OpenClawGateway\logs\openclaw_heartbeat.log
 # =====================================================================
 $ErrorActionPreference = 'SilentlyContinue'
 
 $root = $PSScriptRoot
 if (-not $root) { $root = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $root) { $root = 'E:\OpenClawGateway' }
+if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
 $logDir = Join-Path $root 'logs'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 $logFile = Join-Path $logDir 'openclaw_heartbeat.log'

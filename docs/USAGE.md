@@ -7,7 +7,7 @@
 ## 0. 开始使用
 ```powershell
 # 点亮机器人（还原 key、启用 Telegram 白名单、开 funnel、重启）
-powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\enable-openclaw-api.ps1
+powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\enable-openclaw-api.ps1
 ```
 然后手机 Telegram 给 bot 发消息即可。用完若想零花费：`disable-openclaw-api.ps1`。
 
@@ -62,7 +62,7 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 
 ## 8. ⚠️ 自动更新：不要点应用内的"自动更新"按钮
 - **应用内/原生 `openclaw update`** 会跑 **doctor + schema 迁移**，可能：补回 `*` 白名单、**把 `api` 改回 `responses`→ 技能全部 400 失败**、覆盖自定义开机任务。**风险高，别按。**
-- **要更新就跑** `powershell -File E:\OpenClawGateway\openclaw_update.ps1`（**只用 npm，不跑 doctor**，且更新后**自动重断言 `api=openai-completions`** 自愈）。
+- **要更新就跑** `powershell -File E:\Projects\Tools\OpenClawGateway\openclaw_update.ps1`（**只用 npm，不跑 doctor**，且更新后**自动重断言 `api=openai-completions`** 自愈）。
 - 万一手滑点了应用内更新：**事后跑一次 `openclaw_update.ps1`** 即可自愈关键配置。
 - 永远别跑 `openclaw doctor --fix`（它会补回 `*`）。
 - 更新前先 `tools/backup-config.ps1` 备份，坏了能回滚。
@@ -70,5 +70,5 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 ## 9. 在 codeg 控制台里用 OpenClaw（详见 [CODEG.md](CODEG.md)）
 - ❌ **别用** codeg 的「OpenClaw」ACP agent —— per-session MCP + auth 握手是 codeg 的 bug，走不通。
 - ✅ 用 **Cline** agent + 挂 `openclaw-bridge` MCP（**必须带网关密码** `OPENCLAW_GATEWAY_PASSWORD`）。
-- 一键配置：`powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1` → codeg「MCP」页点刷新 → 把 openclaw-bridge 勾给 Cline → 用 Cline 发任务。
+- 一键配置：`powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1` → codeg「MCP」页点刷新 → 把 openclaw-bridge 勾给 Cline → 用 Cline 发任务。
 - 配好后 Cline 可调 OpenClaw 的 9 个对话工具（列对话 / 读发消息 / 轮询事件 / 处理审批）。

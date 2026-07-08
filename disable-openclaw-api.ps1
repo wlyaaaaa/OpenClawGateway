@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   OpenClaw 安全模式 —— 临时禁用 LLM API，杜绝无人值守烧钱。
 .DESCRIPTION
@@ -15,7 +15,7 @@
 #>
 $ErrorActionPreference = 'Stop'
 $oc   = 'C:\Users\10979\.openclaw'
-$root = $PSScriptRoot; if (-not $root) { $root = 'E:\OpenClawGateway' }
+$root = $PSScriptRoot; if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
 $logDir = Join-Path $root 'logs'; if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 $log = Join-Path $logDir 'api-toggle.log'
 function Log([string]$m){ $l = '{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m; $l | Out-File $log -Append -Encoding utf8; Write-Host $l }

@@ -36,7 +36,7 @@
   <Actions Context="Author">
     <Exec>
       <Command>wscript.exe</Command>
-      <Arguments>"E:\OpenClawGateway\openclaw_run_hidden.vbs"</Arguments>
+      <Arguments>"E:\Projects\Tools\OpenClawGateway\openclaw_run_hidden.vbs"</Arguments>
       <WorkingDirectory>C:\Users\10979\.openclaw</WorkingDirectory>
     </Exec>
   </Actions>

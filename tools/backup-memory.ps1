@@ -1,18 +1,18 @@
-﻿# =====================================================================
+# =====================================================================
 #  backup-memory.ps1 — 备份 Claude Code 记忆（.claude projects memory）
 # ---------------------------------------------------------------------
 #  记忆含本项目运维上下文（路径/模型/安全态等，非原始密钥），
 #  备份到本地时间戳目录并保留最近 N 份；**不入公开仓库**（memory-backup/ 已 gitignore）。
 #  由计划任务「OpenClaw Memory Backup」在晚间 20:20 + 22:20 各跑一次。
-#  用法：powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\backup-memory.ps1
+#  用法：powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\backup-memory.ps1
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
 $src       = "C:\Users\10979\.claude\projects"
-$root      = "E:\OpenClawGateway\memory-backup"
+$root      = "E:\Projects\Tools\OpenClawGateway\memory-backup"
 $cloudRepo = "E:\ClaudeMemoryBackup"   # 私有云备份仓库 wlyaaaaa/claude-memory
 $keep      = 30
-$log       = "E:\OpenClawGateway\logs\backup-memory.log"
+$log       = "E:\Projects\Tools\OpenClawGateway\logs\backup-memory.log"
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m

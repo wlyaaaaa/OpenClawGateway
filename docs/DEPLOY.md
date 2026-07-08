@@ -19,8 +19,8 @@
 ## 1. 一键部署（推荐）
 管理员 PowerShell：
 ```powershell
-git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\OpenClawGateway
-cd E:\OpenClawGateway
+git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\Projects\Tools\OpenClawGateway
+cd E:\Projects\Tools\OpenClawGateway
 
 # 模式 A：有私有备份（最快，含密钥）
 .\bootstrap\setup.ps1 -RestoreFrom "D:\OpenClawBackup\full-20260619-220000"

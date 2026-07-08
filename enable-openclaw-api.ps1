@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
   恢复 OpenClaw API 使用 —— 从安全模式退出。
 .DESCRIPTION
@@ -14,7 +14,7 @@
 #>
 $ErrorActionPreference = 'Stop'
 $oc   = 'C:\Users\10979\.openclaw'
-$root = $PSScriptRoot; if (-not $root) { $root = 'E:\OpenClawGateway' }
+$root = $PSScriptRoot; if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
 $logDir = Join-Path $root 'logs'; if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 $log = Join-Path $logDir 'api-toggle.log'
 function Log([string]$m){ $l = '{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m; $l | Out-File $log -Append -Encoding utf8; Write-Host $l }

@@ -7,7 +7,7 @@
 > 关于大模型 API Key 凭据管理的详细细节、SQLite 同步原理解析以及安全模式的深度使用指南，请参阅独立的专题文档：[API 凭据管理与安全模式指南](API_KEY_MANAGEMENT.md)。
 
 ```
-E:\OpenClawGateway\
+E:\Projects\Tools\OpenClawGateway\
 ├── api.ps1                             # ★快速：一键开关 API（on/off/toggle/status）
 ├── set-api.ps1                         # ★快速：全局设 key/模型/网站 + 提供方档案
 ├── openclaw_silent_boot_guardian.ps1   # 服务：重注册静默开机自启任务

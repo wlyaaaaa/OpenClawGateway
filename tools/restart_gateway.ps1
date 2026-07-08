@@ -1,13 +1,13 @@
 # =====================================================================
 #  OpenClaw Gateway Safe Asynchronous Restart Helper
 #  Escapes the scheduled task's process tree to avoid self-termination.
-#  Log: E:\OpenClawGateway\logs\openclaw_heartbeat.log
+#  Log: E:\Projects\Tools\OpenClawGateway\logs\openclaw_heartbeat.log
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 $taskName = 'OpenClaw Gateway'
 $port = 18789
 
-$root = 'E:\OpenClawGateway'
+$root = 'E:\Projects\Tools\OpenClawGateway'
 $logFile = Join-Path $root 'logs\openclaw_heartbeat.log'
 
 function Log([string]$m) {

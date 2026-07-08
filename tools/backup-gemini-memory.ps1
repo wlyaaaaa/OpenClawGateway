@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $src       = "C:\Users\10979\.gemini"
-$root      = "E:\OpenClawGateway\gemini-memory-backup"
+$root      = "E:\Projects\Tools\OpenClawGateway\gemini-memory-backup"
 $cloudRepo = "E:\GeminiMemoryBackup"   # private repo: wlyaaaaa/gemini-memory
 $keep      = 30
-$log       = "E:\OpenClawGateway\logs\backup-gemini-memory.log"
+$log       = "E:\Projects\Tools\OpenClawGateway\logs\backup-gemini-memory.log"
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m

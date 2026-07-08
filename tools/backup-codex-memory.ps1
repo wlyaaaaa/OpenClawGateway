@@ -13,10 +13,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $src       = "C:\Users\10979\.codex"
-$root      = "E:\OpenClawGateway\codex-memory-backup"
+$root      = "E:\Projects\Tools\OpenClawGateway\codex-memory-backup"
 $cloudRepo = "E:\CodexMemoryBackup"   # private repo: wlyaaaaa/codex-memory
 $keep      = 30
-$log       = "E:\OpenClawGateway\logs\backup-codex-memory.log"
+$log       = "E:\Projects\Tools\OpenClawGateway\logs\backup-codex-memory.log"
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m

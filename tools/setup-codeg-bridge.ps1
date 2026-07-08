@@ -1,4 +1,4 @@
-﻿# =====================================================================
+# =====================================================================
 #  setup-codeg-bridge.ps1 — 一键配置 codeg ↔ OpenClaw 接入
 # ---------------------------------------------------------------------
 #  背景（为什么是这条路）：
@@ -13,7 +13,7 @@
 #  本脚本：把带密码的 openclaw-bridge 写进 Cline 生效配置（codeg 会检测此文件），
 #          并自检认证是否成功，最后打印 codeg 内的收尾步骤。
 #
-#  用法：powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1
+#  用法：powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 

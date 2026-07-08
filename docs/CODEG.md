@@ -13,7 +13,7 @@
 
 一键配置：
 ```powershell
-powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1
+powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1
 ```
 
 ---
@@ -91,7 +91,7 @@ Cline 一调用工具就报：
 ## 3. 完整接入步骤
 
 1. **配 MCP**（二选一）：
-   - 一键：`powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1`
+   - 一键：`powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1`
    - 手动：codeg → 设置 → MCP → 编辑 `openclaw-bridge` 的配置 JSON（见 2.2），点「保存」。
 2. **刷新**：codeg → MCP → 点「刷新」，确认出现 `openclaw-bridge`。
 3. **挂给 Cline**：在 `openclaw-bridge` 的「启用应用」里**勾选 Cline**（不要勾 OpenClaw）。

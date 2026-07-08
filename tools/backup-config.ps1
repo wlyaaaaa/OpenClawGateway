@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS  备份 OpenClaw 全部配置与密钥（重装/迁移用）。
 .DESCRIPTION
   打包 openclaw.json、auth-profiles.json、config.yml、.env、credentials\ 等到
@@ -7,7 +7,7 @@
 .EXAMPLE   .\backup-config.ps1 -Dest D:\OpenClawBackups
 #>
 param(
-    [string]$Dest = 'E:\OpenClawGateway\secrets-backup'
+    [string]$Dest = 'E:\Projects\Tools\OpenClawGateway\secrets-backup'
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')

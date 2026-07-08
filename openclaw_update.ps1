@@ -1,17 +1,17 @@
-﻿# =====================================================================
+# =====================================================================
 #  OpenClaw Gateway Auto-Update Helper (channel-aware, China-resilient)
 #  - Reads update.channel from config (stable/beta/dev) -> npm dist-tag
 #  - Updates ONLY the npm package (no `openclaw update` doctor), so the
 #    custom silent-boot scheduled task is never clobbered.
 #  - Restarts the Gateway task and runs a health check.
-#  Log: E:\OpenClawGateway\logs\openclaw_update.log
+#  Log: E:\Projects\Tools\OpenClawGateway\logs\openclaw_update.log
 #  Run elevated (Administrator) — invoked weekly by the "OpenClaw Update" task.
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
 if (-not $root) { $root = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $root) { $root = 'E:\OpenClawGateway' }
+if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
 $logDir = Join-Path $root 'logs'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 $logFile = Join-Path $logDir 'openclaw_update.log'

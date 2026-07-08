@@ -51,8 +51,8 @@ docs\                              文档（见下）
 
 ## ♻️ 重装恢复（一句话）
 ```powershell
-git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\OpenClawGateway
-E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
+git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\Projects\Tools\OpenClawGateway
+E:\Projects\Tools\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
 ```
 详见 [docs/DEPLOY.md](docs/DEPLOY.md)。**记得定期 `tools\backup-config.ps1` 并异地保存备份。**
 

@@ -45,13 +45,13 @@ Stop-ScheduledTask -TaskName 'OpenClaw Gateway'; Start-ScheduledTask -TaskName '
 ## 3. 重建心跳 / 更新任务（如缺失）
 ```powershell
 # 心跳（每 15 分钟）
-$a=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "E:\OpenClawGateway\openclaw_heartbeat.ps1"'
+$a=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "E:\Projects\Tools\OpenClawGateway\openclaw_heartbeat.ps1"'
 $t=New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)
 $pr=New-ScheduledTaskPrincipal -UserId 'WLY\10979' -LogonType S4U -RunLevel Highest
 Register-ScheduledTask 'OpenClaw Heartbeat' -Action $a -Trigger $t -Principal $pr -Settings (New-ScheduledTaskSettingsSet -Hidden) -Force
 
 # 更新（每周日 04:00）
-$au=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "E:\OpenClawGateway\openclaw_update.ps1"'
+$au=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "E:\Projects\Tools\OpenClawGateway\openclaw_update.ps1"'
 $tu=New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 4am
 Register-ScheduledTask 'OpenClaw Update' -Action $au -Trigger $tu -Principal $pr -Settings (New-ScheduledTaskSettingsSet -Hidden) -Force
 ```
@@ -73,8 +73,8 @@ Register-ScheduledTask 'OpenClaw Update' -Action $au -Trigger $tu -Principal $pr
 ### 5.1 新电脑转移（从 GitHub）
 ```powershell
 # 1) 运维体系
-git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\OpenClawGateway
-E:\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
+git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\Projects\Tools\OpenClawGateway
+E:\Projects\Tools\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私有备份目录>"
 # 2) Claude 记忆（私有仓库）
 git clone https://github.com/wlyaaaaa/claude-memory.git E:\ClaudeMemoryBackup
 Copy-Item E:\ClaudeMemoryBackup\*.md "C:\Users\10979\.claude\projects\E--RamdiskGuardian\memory\" -Force
@@ -101,7 +101,7 @@ Copy-Item E:\OpenClawBackup\workspace\* "C:\Users\10979\.openclaw\workspace\" -R
 
 ## 8. codeg 控制台接入（详见 CODEG.md）
 codeg 的 OpenClaw ACP agent 走不通；用 **Cline + openclaw-bridge MCP（带网关密码）** 间接调用 OpenClaw。
-一键：`powershell -ExecutionPolicy Bypass -File E:\OpenClawGateway\tools\setup-codeg-bridge.ps1`。
+一键：`powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1`。
 
 ## 7. 卸载
 ```powershell

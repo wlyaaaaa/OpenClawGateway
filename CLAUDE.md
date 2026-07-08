@@ -1,11 +1,11 @@
 # CLAUDE.md — 新会话交接文档（OpenClaw 个人智能体网关运维体系）
 
-> 这是给**新 Claude Code 会话**的上下文交接。把工作目录设为 `E:\OpenClawGateway` 即自动加载本文件。
+> 这是给**新 Claude Code 会话**的上下文交接。把工作目录设为 `E:\Projects\Tools\OpenClawGateway` 即自动加载本文件。
 > 用户：简体中文沟通；本机有 root/管理员；关注 LLM 费用与稳定性。
 
 ## 0. 用户的工作流偏好（重要）
 - 复杂任务：**先给计划+预执行任务清单 → （除非用户明说"免审批/你有root/自行决策"，否则征求意见）→ 执行 → 给报告+完成任务清单**。
-- **归档在一处**：把计划/报告写到 `E:\OpenClawGateway\journal\<日期>.md`；由计划任务 `OpenClawGateway AutoPush` 每日 21:15 自动推 GitHub（带机密扫描守卫）。
+- **归档在一处**：把计划/报告写到 `E:\Projects\Tools\OpenClawGateway\journal\<日期>.md`；由计划任务 `OpenClawGateway AutoPush` 每日 21:15 自动推 GitHub（带机密扫描守卫）。
 - **不写长期记忆**（除非用户要求）。不要把上一轮任务继续往下一轮硬塞。
 - 用户给"无须审批立刻执行/root/自行决策"时 → 直接干，不要反复提问。
 
@@ -18,7 +18,7 @@
 ## 2. 仓库（都在用户 GitHub `wlyaaaaa`）
 | 本地 | GitHub | 说明 |
 |------|--------|------|
-| `E:\OpenClawGateway` | OpenClawGateway (public) | **本体**：运维脚本/文档/bootstrap/journal/auto-push |
+| `E:\Projects\Tools\OpenClawGateway` | OpenClawGateway (public) | **本体**：运维脚本/文档/bootstrap/journal/auto-push |
 | `E:\WeFlowBridge` | WeFlowBridge (public, **master 分支**) | 微信 API bridge + 看门狗 |
 | `E:\ClineAgent` | 无 remote（本地） | Cline 工作沙箱，含 .clinerules |
 | `E:\RamdiskGuardian` | RamdiskGuardian (public) | 独立 RAM 盘项目（已清空 openclaw） |
@@ -50,7 +50,7 @@
 
 ## 6. 踩过的坑（务必知道）
 - **PowerShell 5.1 编码崩溃**：`set-api.ps1` 采用**全 ASCII 英文输出**策略，彻底避开了中文编码在 GBK 系统下被误判为特殊符号（如双引号或反斜杠）的缺陷。对于其他必须写入中文的 `.ps1` 脚本，仍需保存为 UTF-8 BOM 格式。
-- **智能体自重启死锁**：不能直接运行 `openclaw gateway restart`，会因 schtasks /End 强杀父进程导致后续命令无法执行。必须运行 `powershell -File E:\OpenClawGateway\tools\restart_gateway.ps1`，其通过 WMI 机制（`Invoke-WmiMethod`）脱离进程树在后台安全重启。
+- **智能体自重启死锁**：不能直接运行 `openclaw gateway restart`，会因 schtasks /End 强杀父进程导致后续命令无法执行。必须运行 `powershell -File E:\Projects\Tools\OpenClawGateway\tools\restart_gateway.ps1`，其通过 WMI 机制（`Invoke-WmiMethod`）脱离进程树在后台安全重启。
 - **修改 JSON/SQLite 配置**：修改 `openclaw.json` 首选原生 `openclaw config patch` 进行安全合并；对于 `auth-profiles.json` 等配置文件，写回时必须使用 `.NET` 写入无 BOM 格式的 UTF-8 以防 JSON 报错。对于 SQLite 活跃凭据，使用 `tools\update_sqlite_profiles.py` 直接操纵数据库修改。
 - 模型 403 多半是**快速连发限流**，加 2s 间隔重测往往就 OK。
 - `openclaw cron delete` 需设备 scope 审批；disable dreaming + 重启即可移除其 cron。

@@ -74,12 +74,12 @@ openclaw daemon uninstall
 
 重新注册（管理员 PowerShell）：
 ```powershell
-powershell -ExecutionPolicy Bypass -File "E:\OpenClawGateway\openclaw_silent_boot_guardian.ps1"
+powershell -ExecutionPolicy Bypass -File "E:\Projects\Tools\OpenClawGateway\openclaw_silent_boot_guardian.ps1"
 ```
 
 ## 3. 心跳看门狗（`openclaw_heartbeat.ps1`）
 计划任务 `OpenClaw Heartbeat` 每 15 分钟探测 `127.0.0.1:18789`；无响应则
-`Stop`/`Start` 网关任务自愈。日志：`E:\OpenClawGateway\logs\openclaw_heartbeat.log`。
+`Stop`/`Start` 网关任务自愈。日志：`E:\Projects\Tools\OpenClawGateway\logs\openclaw_heartbeat.log`。
 （v2026.6.6 已内建进程级 supervisor，此心跳作为外部兜底。）
 
 ## 4. 认证与免登录运行
@@ -91,9 +91,9 @@ powershell -ExecutionPolicy Bypass -File "E:\OpenClawGateway\openclaw_silent_boo
 网关无人值守，需防止自动任务烧 LLM 费用。本仓库提供一键开关：
 ```powershell
 # 进入安全模式：备份并清空 DashScope key、关 dreaming/自动更新/入站渠道、关 funnel
-powershell -File "E:\OpenClawGateway\disable-openclaw-api.ps1"
+powershell -File "E:\Projects\Tools\OpenClawGateway\disable-openclaw-api.ps1"
 # 恢复使用：还原 key 与渠道，重启网关并健康检查
-powershell -File "E:\OpenClawGateway\enable-openclaw-api.ps1"
+powershell -File "E:\Projects\Tools\OpenClawGateway\enable-openclaw-api.ps1"
 ```
 详见 [SCRIPTS.md](SCRIPTS.md)。安全模式下网关照常开机自启、监听 18789，
 但**任何模型调用因无 key 立即失败 → 零花费**。
@@ -129,7 +129,7 @@ Get-ScheduledTask "OpenClaw Gateway","OpenClaw Heartbeat" | ft TaskName,State
 
 ## 10. 文件清单
 ```
-E:\OpenClawGateway\
+E:\Projects\Tools\OpenClawGateway\
 ├── README.md
 ├── openclaw_silent_boot_guardian.ps1   静默开机自启重注册脚本
 ├── openclaw_heartbeat.ps1              15 分钟端口看门狗
