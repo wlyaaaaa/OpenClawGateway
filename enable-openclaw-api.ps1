@@ -1,14 +1,13 @@
-<#
+﻿<#
 .SYNOPSIS
   恢复 OpenClaw API 使用 —— 从安全模式退出。
 .DESCRIPTION
     1. 从最近一次备份还原 DashScope API key
-    2. 重新启用 Telegram 渠道（白名单仅本人 ID，已永久移除 "*"）
+    2. 保持 Telegram / Feishu 入站渠道开关不变，避免 API key 开关破坏 IM 可用性
     3. 更新通道设为 stable（自动更新仍保持手动，更稳）
     4. 重新开启 Tailscale funnel 公网入口
     5. 重启网关并做健康检查
-  说明：飞书 / Google Chat、memory-core.dreaming 默认保持关闭以省费用；
-        如需使用，填入正确的渠道白名单后在 openclaw.json 手动启用。
+  说明：IM channel 是否启用由 openclaw.json 长期配置决定，不由 API key 脚本改写。
 .NOTES
   以管理员 PowerShell 运行。
 #>
@@ -48,18 +47,18 @@ $bakAuth = Join-Path $backupDir 'auth-profiles.json'
 if (Test-Path $bakAuth) { Copy-Item $bakAuth $authFile -Force; Log '已从备份还原 API key' }
 else { Log '[WARN] 备份中无 auth-profiles.json；请手动填回 key' }
 
-# 3. 重新启用 Telegram（白名单）/ 通道 stable / 开 funnel
+# 3. 收敛 Telegram 白名单 / 通道 stable / 开 funnel；不改 Telegram 或 Feishu enabled
 $patch = @'
 {
   "update": { "auto": { "enabled": false }, "channel": "stable", "checkOnStart": true },
-  "channels": { "telegram": { "enabled": true, "allowFrom": [8320970051], "groupAllowFrom": [8320970051] } },
+  "channels": { "telegram": { "allowFrom": [8320970051], "groupAllowFrom": [8320970051] } },
   "gateway": { "tailscale": { "mode": "funnel" } }
 }
 '@
 $patchFile = Join-Path $logDir 'enable.patch.json'
 $patch | Set-Content $patchFile -Encoding utf8
 & openclaw config patch --file $patchFile | ForEach-Object { Log "config: $_" }
-Log '已恢复 telegram(白名单) + stable 通道 + funnel'
+Log '已恢复 API key + stable 通道 + funnel（IM channel enabled 保持不变）'
 
 # 4. 重启网关 + 健康检查
 Start-ScheduledTask -TaskName $task -ErrorAction SilentlyContinue
@@ -70,4 +69,4 @@ if (Test-Path $ts) { & $ts funnel status 2>$null | ForEach-Object { Log "funnel:
 
 @{ state = 'enabled'; at = (Get-Date -Format o); backup = $backupDir } | ConvertTo-Json |
     Set-Content $stateFile -Encoding utf8
-Log '=== ENABLE 完成。机器人(Telegram)应已恢复响应。 ==='
+Log '=== ENABLE 完成。机器人响应取决于长期 IM channel enabled 配置。 ==='

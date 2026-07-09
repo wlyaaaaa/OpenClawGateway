@@ -75,12 +75,12 @@ OpenClaw 机器人在后台可能会有自动的 Memory 整理、定时思考任
 * **`.\api.ps1 off` — 进入安全省钱模式**
   1. 自动将当前活跃的 `auth-profiles.json` 备份到 `secrets-backup\<时间戳>\`。
   2. **强行清空本地的所有 API Key**，使任何大模型调用因无 Key 立刻失败，实现 0 扣费。
-  3. 关闭全部外部连接通道（Telegram, 飞书，Google Chat）和后台 Dreaming 思考，停止 Tailscale 穿透，消除安全隐患。
+  3. 保持 Telegram / 飞书的 `enabled` 长期开关不变，只关闭后台 Dreaming 思考，停止 Tailscale 穿透，避免 API key 脚本破坏 IM 可用性。
   4. 重启网关。
 
 * **`.\api.ps1 on` — 退出安全模式，恢复 API**
   1. 自动寻找最近一次的密钥备份，将其还原回 `auth-profiles.json`。
-  2. 重新启用 Telegram 渠道，并收敛白名单至您个人的账号 ID（防他人蹭用）。
+  2. 保持 Telegram / 飞书的 `enabled` 长期开关不变，并收敛 Telegram 白名单至您个人的账号 ID（防他人蹭用）。
   3. 重启网关并进行连通性探活。
 
 * **`.\api.ps1`（不带参数） — 翻转状态**

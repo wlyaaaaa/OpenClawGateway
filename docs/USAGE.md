@@ -6,10 +6,10 @@
 
 ## 0. 开始使用
 ```powershell
-# 点亮机器人（还原 key、启用 Telegram 白名单、开 funnel、重启）
+# 点亮机器人（还原 key、保持 Telegram/飞书 enabled、开 funnel、重启）
 powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\enable-openclaw-api.ps1
 ```
-然后手机 Telegram 给 bot 发消息即可。用完若想零花费：`disable-openclaw-api.ps1`。
+然后手机 Telegram / 飞书给 bot 发消息即可。用完若想零花费：`disable-openclaw-api.ps1`，它不会把 Telegram / 飞书 `enabled` 改成 `false`。
 
 ## 1. 模型与思考（默认已拉满）
 - 默认就是最强推理模型 + 最高思考；一般无需手动调。
@@ -35,8 +35,9 @@ powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\enabl
 OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 
 ## 4. 渠道与安全
-- 当前只用 **Telegram**，白名单仅你的 ID（`8320970051`，已去 `"*"`）。
-- 飞书 / Google Chat 默认关；要用先填**正确白名单**（飞书用 open_id，别用 `"*"`）再启用。
+- 当前 **Telegram** 和 **飞书** 的 `enabled` 长期开关保持开启；API key 脚本不得改写它们。
+- Telegram 白名单仅你的 ID（`8320970051`，已去 `"*"`）；飞书也必须使用正确白名单（飞书用 open_id，别用 `"*"`）。
+- Google Chat 默认关；要用先填正确白名单再启用。
 - `commands.bash` 开着＝聊天可在本机执行命令，务必只对可信白名单开放。
 
 ## 5. 成本与稳定（信息参考，不强制）

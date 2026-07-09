@@ -1,13 +1,13 @@
-<#
+﻿<#
 .SYNOPSIS
   OpenClaw 安全模式 —— 临时禁用 LLM API，杜绝无人值守烧钱。
 .DESCRIPTION
   网关照常开机自启 / 监听 18789，但：
     1. 备份并清空 DashScope API key  → 任何模型调用立即失败（零花费）
-    2. 关闭全部入站渠道(telegram/feishu/googlechat) → 无外部触发
+    2. 保持 Telegram / Feishu 入站渠道开关不变，避免 API key 开关破坏 IM 可用性
     3. 关闭 memory-core.dreaming  → 无后台自动思考
     4. 关闭自动更新 / 启动检查      → 无联网超时拖累启动
-    5. Telegram allowFrom 收敛为仅本人 ID（移除 "*"）
+    5. 收敛 Telegram allowFrom 为仅本人 ID（移除 "*"），但不改 enabled
     6. Tailscale funnel/serve 复位  → 关闭公网暴露
   备份保存在 .\secrets-backup\<时间戳>\，可用 enable-openclaw-api.ps1 一键恢复。
 .NOTES
@@ -52,14 +52,12 @@ if (Test-Path $authFile) {
     Log '已清空 auth-profiles.json 中的 API key'
 }
 
-# 4. 经原生 CLI 一次性校验写入：关渠道/关 dreaming/关自动更新/收敛白名单/关 funnel
+# 4. 经原生 CLI 一次性校验写入：保留 IM enabled，只关 dreaming/自动更新/公网暴露并收敛白名单
 $patch = @'
 {
   "update": { "auto": { "enabled": false }, "checkOnStart": false },
   "channels": {
-    "telegram":   { "enabled": false, "allowFrom": [8320970051], "groupAllowFrom": [8320970051] },
-    "feishu":     { "enabled": false },
-    "googlechat": { "enabled": false }
+    "telegram":   { "allowFrom": [8320970051], "groupAllowFrom": [8320970051] }
   },
   "plugins": { "entries": { "memory-core": { "config": { "dreaming": { "enabled": false } } } } },
   "gateway": { "tailscale": { "mode": "off" } }
@@ -68,7 +66,7 @@ $patch = @'
 $patchFile = Join-Path $logDir 'safe-mode.patch.json'
 $patch | Set-Content $patchFile -Encoding utf8
 & openclaw config patch --file $patchFile | ForEach-Object { Log "config: $_" }
-Log '已将 openclaw.json 切到安全模式'
+Log '已将 openclaw.json 切到 API 安全模式（IM channel enabled 保持不变）'
 
 # 5. 关闭 Tailscale 公网暴露
 if (Test-Path $ts) { & $ts serve reset 2>$null; Log 'tailscale serve/funnel 已复位' }

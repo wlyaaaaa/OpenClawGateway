@@ -90,13 +90,13 @@ powershell -ExecutionPolicy Bypass -File "E:\Projects\Tools\OpenClawGateway\open
 ## 5. 成本控制 / 安全模式（重点）
 网关无人值守，需防止自动任务烧 LLM 费用。本仓库提供一键开关：
 ```powershell
-# 进入安全模式：备份并清空 DashScope key、关 dreaming/自动更新/入站渠道、关 funnel
+# 进入 API 安全模式：备份并清空 DashScope key、保持 IM channel enabled、关 dreaming/自动更新、关 funnel
 powershell -File "E:\Projects\Tools\OpenClawGateway\disable-openclaw-api.ps1"
-# 恢复使用：还原 key 与渠道，重启网关并健康检查
+# 恢复使用：还原 key、保持 IM channel enabled、重启网关并健康检查
 powershell -File "E:\Projects\Tools\OpenClawGateway\enable-openclaw-api.ps1"
 ```
 详见 [SCRIPTS.md](SCRIPTS.md)。安全模式下网关照常开机自启、监听 18789，
-但**任何模型调用因无 key 立即失败 → 零花费**。
+Telegram / 飞书的 `enabled` 长期开关不由 API key 脚本改写；但**任何模型调用因无 key 立即失败 → 零花费**。
 
 ## 6. 渠道与命令权限（安全须知）
 - Telegram / 飞书 / Google Chat 通过 `openclaw.json > channels` 配置。

@@ -32,8 +32,8 @@ E:\Projects\Tools\OpenClawGateway\
 
 ### `api.ps1` — 一键开关 API
 ```powershell
-.\api.ps1 on        # 开启（还原 key + Telegram 白名单 + funnel，机器人可用）
-.\api.ps1 off       # 关闭（清空 key + 关渠道/funnel，零花费安全模式）
+.\api.ps1 on        # 开启（还原 key + 保持 IM 渠道开关 + funnel，机器人可用）
+.\api.ps1 off       # 关闭（清空 key + 保持 IM 渠道开关 + 关 funnel，零花费 API 安全模式）
 .\api.ps1           # 不带参数＝自动判别并翻转
 .\api.ps1 status    # 查看当前状态 + 完整面板
 ```
@@ -79,13 +79,13 @@ powershell -File .\openclaw_update.ps1
 ### `disable-openclaw-api.ps1` / `enable-openclaw-api.ps1`（成本安全模式）
 | 脚本 | 作用 |
 |------|------|
-| **disable** | 备份并**清空 DashScope key** → 零 LLM 花费；关 channels/dreaming/自动更新；收敛白名单；关 Funnel |
-| **enable**  | 还原 key；重新启用 Telegram（仅本人白名单）；stable 通道；开 Funnel；重启 + 健康检查 |
+| **disable** | 备份并**清空 DashScope key** → 零 LLM 花费；保持 Telegram/飞书 enabled 不变；关 dreaming/自动更新；收敛白名单；关 Funnel |
+| **enable**  | 还原 key；保持 Telegram/飞书 enabled 不变；stable 通道；开 Funnel；重启 + 健康检查 |
 ```powershell
 powershell -File .\disable-openclaw-api.ps1     # 闲时省钱
 powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 ```
-> 备份位于 `secrets-backup\`（已 gitignore）。enable 默认**不**自动恢复飞书/dreaming，避免意外花费。
+> 备份位于 `secrets-backup\`（已 gitignore）。API key 脚本永远不改 Telegram/飞书的 `enabled` 开关；IM 是否在线由长期配置决定。
 
 ---
 

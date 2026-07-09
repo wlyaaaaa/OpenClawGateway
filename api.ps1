@@ -1,8 +1,8 @@
 ﻿<#
 .SYNOPSIS  一键开关 OpenClaw 的大模型 API（成本安全模式）。
 .DESCRIPTION
-  on     ＝ 还原 key + 启用 Telegram 白名单 + funnel（机器人可用）
-  off    ＝ 清空 key + 关渠道/funnel（零花费，安全模式）
+  on     ＝ 还原 key + 保持 IM 渠道开关 + funnel（机器人可用）
+  off    ＝ 清空 key + 保持 IM 渠道开关 + 关 funnel（零花费，API 安全模式）
   toggle ＝ 自动判别当前状态并翻转（默认）
   status ＝ 查看当前状态
 .EXAMPLE  .\api.ps1 on
