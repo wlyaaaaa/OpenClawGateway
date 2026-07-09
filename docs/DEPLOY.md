@@ -12,7 +12,7 @@
   Google 服务账号 —— 这些只在你本机 `.openclaw\`，靠**你自己的备份**恢复。
 
 > ⚠️ **现在就做的事（防患未然）**：定期运行 `.\tools\backup-config.ps1`，把
-> `secrets-backup\full-*` 整个目录**异地保存**（U 盘 / 私有网盘）。重装时这份备份 = 满血复活。
+> `C:\Users\<USER>\.openclaw\secrets-backup\full-*` 整个目录**异地保存**（U 盘 / 私有网盘）。重装时这份备份 = 满血复活。
 
 ---
 
@@ -29,7 +29,7 @@ cd E:\Projects\Tools\OpenClawGateway
 .\bootstrap\setup.ps1
 ```
 `setup.ps1` 会依次：装运行时(Node/openclaw/cline) → 还原/初始化配置 → 设网关密码 →
-生成 gateway.cmd(含 1536MB 堆) → 注册三个计划任务 → 装 Cline 全局规则 → 校验。
+生成 gateway.cmd 作为本地配置参考 → 注册 Gateway/Heartbeat；`OpenClaw Update` 任务保留但 Disabled → 装 Cline 全局规则 → 校验。
 
 完成后：
 ```powershell
@@ -88,7 +88,7 @@ copy bootstrap\cline-rules\openclaw-service.md  $env:USERPROFILE\Documents\Cline
 - **`contextPruning: {mode: cache-ttl, ttl: 5m}`** —— 自动裁剪累积的旧工具输出，对话质量无损（官方 session-pruning，纯省 token）
 - 模型名已修复（无乱码）、移除失效 gemini 选项；`runRetries.max=5`（减少无效重试烧 token）
 - **更新通道 stable** + `checkOnStart=false`（开机不被 registry 超时拖崩）
-- `gateway.cmd` 堆上限 **1536MB**（防 OOM）
+- `OpenClaw Gateway` 计划任务 direct-node 参数带 `--max-old-space-size=1536`（防 OOM）
 - 渠道默认收敛白名单（无 `"*"`）
 
 ### 4.1 工具联动（skills 触发式联想）

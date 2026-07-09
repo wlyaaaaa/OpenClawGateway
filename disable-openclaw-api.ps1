@@ -9,14 +9,15 @@
     4. 关闭自动更新 / 启动检查      → 无联网超时拖累启动
     5. 收敛 Telegram allowFrom 为仅本人 ID（移除 "*"），但不改 enabled
     6. Tailscale funnel/serve 复位  → 关闭公网暴露
-  备份保存在 .\secrets-backup\<时间戳>\，可用 enable-openclaw-api.ps1 一键恢复。
+  备份默认保存在 $env:USERPROFILE\.openclaw\secrets-backup\<时间戳>\，
+  可用 enable-openclaw-api.ps1 一键恢复。
 .NOTES
   以管理员 PowerShell 运行。
 #>
 $ErrorActionPreference = 'Stop'
-$oc   = 'C:\Users\10979\.openclaw'
+$oc   = Join-Path $env:USERPROFILE '.openclaw'
 $root = $PSScriptRoot; if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
-$logDir = Join-Path $root 'logs'; if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
+$logDir = Join-Path $oc 'logs\OpenClawGateway'; if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 $log = Join-Path $logDir 'api-toggle.log'
 function Log([string]$m){ $l = '{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m; $l | Out-File $log -Append -Encoding utf8; Write-Host $l }
 
@@ -25,8 +26,29 @@ $authFile = Join-Path $oc 'auth-profiles.json'
 $cfgFile  = Join-Path $oc 'openclaw.json'
 $ts       = 'C:\Program Files\Tailscale\tailscale.exe'
 $stamp    = Get-Date -Format 'yyyyMMdd-HHmmss'
-$backupDir = Join-Path (Join-Path $root 'secrets-backup') $stamp
+$secretBackupRoot = $env:OPENCLAW_SECRET_BACKUP_DIR
+if (-not $secretBackupRoot) { $secretBackupRoot = Join-Path $oc 'secrets-backup' }
+$backupDir = Join-Path $secretBackupRoot $stamp
 New-Item -ItemType Directory -Force $backupDir | Out-Null
+
+function Get-TelegramOwnerIds {
+    $raw = $env:OC_TELEGRAM_USER_ID
+    if (-not $raw -and (Test-Path $cfgFile)) {
+        try {
+            $cfg = Get-Content $cfgFile -Raw | ConvertFrom-Json
+            $raw = @($cfg.channels.telegram.allowFrom |
+                Where-Object { "$_" -match '^\d+$' } |
+                Select-Object -First 1) -join ','
+        } catch {}
+    }
+    if (-not $raw) {
+        throw 'Set OC_TELEGRAM_USER_ID or keep a numeric channels.telegram.allowFrom value in openclaw.json before changing API mode.'
+    }
+
+    $ids = @($raw -split '[,;\s]+' | Where-Object { $_ } | ForEach-Object { [int64]$_ })
+    if ($ids.Count -eq 0) { throw 'OC_TELEGRAM_USER_ID did not contain a numeric Telegram user ID.' }
+    return $ids
+}
 
 Log '=== DISABLE: 进入安全模式 (零 LLM 花费) ==='
 
@@ -53,16 +75,13 @@ if (Test-Path $authFile) {
 }
 
 # 4. 经原生 CLI 一次性校验写入：保留 IM enabled，只关 dreaming/自动更新/公网暴露并收敛白名单
-$patch = @'
-{
-  "update": { "auto": { "enabled": false }, "checkOnStart": false },
-  "channels": {
-    "telegram":   { "allowFrom": [8320970051], "groupAllowFrom": [8320970051] }
-  },
-  "plugins": { "entries": { "memory-core": { "config": { "dreaming": { "enabled": false } } } } },
-  "gateway": { "tailscale": { "mode": "off" } }
-}
-'@
+$telegramOwnerIds = Get-TelegramOwnerIds
+$patch = @{
+    update = @{ auto = @{ enabled = $false }; checkOnStart = $false }
+    channels = @{ telegram = @{ allowFrom = $telegramOwnerIds; groupAllowFrom = $telegramOwnerIds } }
+    plugins = @{ entries = @{ 'memory-core' = @{ config = @{ dreaming = @{ enabled = $false } } } } }
+    gateway = @{ tailscale = @{ mode = 'off' } }
+} | ConvertTo-Json -Depth 20
 $patchFile = Join-Path $logDir 'safe-mode.patch.json'
 $patch | Set-Content $patchFile -Encoding utf8
 & openclaw config patch --file $patchFile | ForEach-Object { Log "config: $_" }

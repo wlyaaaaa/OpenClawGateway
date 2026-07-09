@@ -3,12 +3,14 @@ import json
 import shutil
 import datetime
 import re
+from pathlib import Path
 
-openclaw_dir = r"C:\Users\10979\.openclaw"
+home = Path.home()
+openclaw_dir = str(home / ".openclaw")
 openclaw_json_path = os.path.join(openclaw_dir, "openclaw.json")
 auth_profiles_path = os.path.join(openclaw_dir, "auth-profiles.json")
 config_yml_path = os.path.join(openclaw_dir, "config.yml")
-cline_providers_path = r"C:\Users\10979\.cline\data\settings\providers.json"
+cline_providers_path = str(home / ".cline" / "data" / "settings" / "providers.json")
 
 timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 

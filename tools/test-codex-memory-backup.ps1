@@ -1,4 +1,4 @@
-param()
+﻿param()
 
 $ErrorActionPreference = 'Stop'
 
@@ -37,9 +37,16 @@ function Assert-None([string]$regex, [string]$message) {
     }
 }
 
+function Assert-AnyIfSourceExists([string]$sourceRelativePath, [string]$pattern, [string]$message) {
+    $sourcePath = Join-Path ([string]$data.sourceRoot) $sourceRelativePath
+    if (Test-Path -LiteralPath $sourcePath) {
+        Assert-Any $pattern $message
+    }
+}
+
 Assert-Any 'AGENTS.md' 'AGENTS.md must be backed up'
 Assert-Any 'config.toml' 'config.toml must be backed up'
-Assert-Any 'version.json' 'version.json must be backed up'
+Assert-AnyIfSourceExists 'version.json' 'version.json' 'version.json must be backed up when present'
 Assert-Any 'chrome-native-hosts-v2.json' 'native host config must be backed up'
 Assert-Any 'browser/config.toml' 'browser config must be backed up'
 Assert-Any 'computer-use/config.json' 'computer-use config must be backed up'

@@ -6,9 +6,42 @@
 #>
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-$logDir = Join-Path $repo 'logs'; New-Item -ItemType Directory -Force $logDir | Out-Null
+$logDir = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'logs\OpenClawGateway'; New-Item -ItemType Directory -Force $logDir | Out-Null
 $log = Join-Path $logDir 'auto-push.log'
 function Log([string]$m){ ('{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) | Out-File $log -Append -Encoding utf8 }
+
+function Abort-Push([string]$reason) {
+    git -C $repo reset | Out-Null
+    Log "[ABORT] $reason"
+    exit 1
+}
+
+function Test-ForbiddenTrackedPath([string]$path) {
+    if ($path -like 'journal/*') { return $true }
+    if ($path -like 'logs/*') { return $true }
+    if ($path -like '.secrets/*') { return $true }
+    if ($path -like 'secrets-backup/*') { return $true }
+    if ($path -like 'memory-backup/*') { return $true }
+    if ($path -like 'codex-memory-backup/*') { return $true }
+    if ($path -like 'gemini-memory-backup/*') { return $true }
+    if ($path -eq 'CLAUDE.md') { return $true }
+    if ($path -eq 'docs/AUDIT.md') { return $true }
+    if ($path -eq 'openclaw_task.xml') { return $true }
+    if ($path -eq 'auth-profiles.json') { return $true }
+    if ($path -eq 'openclaw.json') { return $true }
+    if ($path -eq 'README.pdf' -or $path -like 'docs/*.pdf') { return $true }
+    if ($path -like '*.patch.json') { return $true }
+    if ($path -like '*.env' -or $path -like '.env*') { return $true }
+    return $false
+}
+
+# Public repo invariant: these paths must never be tracked, even if someone
+# changes .gitignore or force-adds files manually.
+$trackedFiles = git -C $repo ls-files
+$forbiddenTracked = @($trackedFiles | Where-Object { Test-ForbiddenTrackedPath $_ })
+if ($forbiddenTracked.Count -gt 0) {
+    Abort-Push "public repository contains forbidden tracked paths: $($forbiddenTracked -join ', ')"
+}
 
 # 1. 有改动才继续
 $dirty = git -C $repo status --porcelain
@@ -18,12 +51,22 @@ if (-not $dirty) { Log 'no changes'; exit 0 }
 git -C $repo add -A | Out-Null
 # 排除本脚本自身（它定义了模式串，避免自我误报）
 $staged = git -C $repo diff --cached --text -- . ':(exclude)tools/auto-archive-push.ps1' 2>$null | Out-String
-# 模式拆分拼接，使本文件源码不字面包含完整模式
-$patterns = (('8857'+'353244'),('sk-'+'ws-'),('wlySecure'+'Claw2026'),('-----BEGIN '+'PRIVATE KEY-----'),('AAHswW0'+'qeNXs'),('Vvul'+'WjvTbSDx')) -join '|'
+# 模式拆分拼接，使本文件源码不字面包含历史完整值，同时覆盖常见新泄露形态。
+$patterns = @(
+    ('8857'+'353244'),
+    ('sk-'+'ws-'),
+    ('wlySecure'+'Claw2026'),
+    ('-----BEGIN '+'PRIVATE KEY-----'),
+    ('AAHswW0'+'qeNXs'),
+    ('Vvul'+'WjvTbSDx'),
+    'sk-[A-Za-z0-9_-]{20,}',
+    'Authorization:\s*Bearer\s+\S+',
+    '"botToken"\s*:\s*"(?!<)',
+    'api_key:\s*["'']?(?!<|PLACEHOLDER|placeholder)[A-Za-z0-9._-]{16,}',
+    'OPENCLAW_GATEWAY_PASSWORD\s*[:=]\s*["'']?(?!<)'
+) -join '|'
 if ($staged -match $patterns) {
-    git -C $repo reset | Out-Null
-    Log '[ABORT] 检测到疑似机密，已中止自动推送（请人工检查）'
-    exit 1
+    Abort-Push '检测到疑似机密，已中止自动推送（请人工检查）'
 }
 
 # 3. 提交 + 推送

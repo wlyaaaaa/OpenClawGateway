@@ -1,6 +1,6 @@
 # codeg ↔ OpenClaw / Cline 接入指南
 
-> 适配：codeg 控制台（`C:\Users\10979\AppData\Local\codeg`）+ OpenClaw v2026.6.8 + Cline CLI。
+> 适配：codeg 控制台（`C:\Users\<USER>\AppData\Local\codeg`）+ OpenClaw v2026.6.8 + Cline CLI。
 > 本文记录把 codeg 接到 OpenClaw 的**唯一可行路径**、踩过的坑与一键脚本。
 > 公开仓库：文中 `<网关密码>` 等为占位符，真实凭据只在本机。
 
@@ -65,7 +65,7 @@ Cline 一调用工具就报：
 }
 ```
 
-> codeg 会检测 Cline 的生效配置 `C:\Users\10979\.cline\data\settings\cline_mcp_settings.json`；
+> codeg 会检测 Cline 的生效配置 `C:\Users\<USER>\.cline\data\settings\cline_mcp_settings.json`；
 > `setup-codeg-bridge.ps1` 会把上面的配置（密码自动从环境变量取）写进该文件，省去手填。
 
 ### 2.3 实测：带密码即认证成功，暴露 9 个工具
@@ -97,7 +97,7 @@ Cline 一调用工具就报：
 3. **挂给 Cline**：在 `openclaw-bridge` 的「启用应用」里**勾选 Cline**（不要勾 OpenClaw）。
 4. **配 Cline 模型凭据**（智能体 → Cline）：
    - Provider = `OpenAI Compatible`
-   - API URL = `https://ws-50ggmajfpk06feuv.cn-beijing.maas.aliyuncs.com/compatible-mode/v1`
+   - API URL = `<OPENCLAW_MAAS_BASE_URL>` 或公开兼容端点
    - API Key = `<DashScope/MaaS key（sk-ws-…）>`
    - Model = `qwen3.7-plus`（⚠️ 别用默认占位的 `claude-sonnet-4-5`，该端点没有此模型）
    - 也可在「环境变量」里注入 `OPENAI_BASE_URL` / `OPENAI_API_KEY`（与上面一致）。

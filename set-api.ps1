@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  快速全局设置 API：key / 模型名称 / 网站(baseUrl)。支持「提供方档案」一键切换。
 .DESCRIPTION
   provider 固定为 openai；api=openai-completions 命门不变。
@@ -20,7 +20,7 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'tools\_common.ps1')
 
-$secretsDir = Join-Path $PSScriptRoot '.secrets'
+$secretsDir = Join-Path $OC '.secrets'
 $profPath   = Join-Path $secretsDir 'providers.json'
 
 function Read-Profiles { 
@@ -115,12 +115,13 @@ if (-not ($BaseUrl -or $Key -or $Model)) {
 }
 
 # 备份
-$bak = Join-Path (Join-Path $PSScriptRoot 'secrets-backup') ("setapi-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$bak = Join-Path (Join-Path $OC 'secrets-backup') ("setapi-" + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Force $bak | Out-Null
 Copy-Item (Join-Path $OC 'openclaw.json') $bak -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $OC 'auth-profiles.json') $bak -Force -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $OC 'config.yml') $bak -Force -ErrorAction SilentlyContinue
-Copy-Item 'C:\Users\10979\.cline\data\settings\providers.json' $bak -Force -ErrorAction SilentlyContinue
+$clinePath = Join-Path $env:USERPROFILE '.cline\data\settings\providers.json'
+Copy-Item $clinePath $bak -Force -ErrorAction SilentlyContinue
 Write-Info "Backed up configuration files -> $bak"
 
 Stop-Gateway
@@ -213,7 +214,6 @@ if (Test-Path $configYml) {
 }
 
 # 4. 同步 Cline providers.json (BOM-free UTF-8)
-$clinePath = 'C:\Users\10979\.cline\data\settings\providers.json'
 if (Test-Path $clinePath) {
     try {
         $cline = Get-Content $clinePath -Raw | ConvertFrom-Json

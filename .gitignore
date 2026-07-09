@@ -1,5 +1,9 @@
 # ── 运行时 / 日志（非源码） ──
 logs/
+journal/
+CLAUDE.md
+openclaw_task.xml
+docs/AUDIT.md
 *.log
 *.log.1
 __pycache__/
@@ -8,6 +12,7 @@ __pycache__/
 # ── 备份归档（体积大 / 可能含机密，绝不进公开仓库） ──
 *.zip
 *.codeg.zip
+*.pdf
 codeg-backup-*
 *.bak
 secrets-backup-*
@@ -30,4 +35,4 @@ providers.json
 *.key
 id_rsa*
 *service-account*.json
-# 注：文档 PDF（docs/*.pdf、README.pdf）允许提交；secrets-backup 已整体忽略
+# 注：文档 PDF 由 Markdown 生成，本公开仓库不跟踪二进制导出；secrets-backup 已整体忽略

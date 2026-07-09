@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   OpenClaw Gateway — Silent Boot Guardian (Self-Heal Script)
   Auto-audits and re-registers the "OpenClaw Gateway" Windows Scheduled Task
@@ -28,8 +28,8 @@
 
 param(
     [string]$TaskName       = 'OpenClaw Gateway',
-    [string]$GatewayCmdPath = 'C:\Users\10979\.openclaw\gateway.cmd',
-    [string]$User           = 'WLY\10979',
+    [string]$GatewayCmdPath = (Join-Path $env:USERPROFILE '.openclaw\gateway.cmd'),
+    [string]$User           = "$env:USERDOMAIN\$env:USERNAME",
     [int]   $RestartDelaySeconds = 60,
     [int]   $MaxRestartCount     = 3
 )
@@ -40,7 +40,7 @@ if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand
 if (-not $scriptRoot) { $scriptRoot = 'E:\Projects\Tools\OpenClawGateway' }
 
 # ── Logging ──────────────────────────────────────────────────────────────
-$logDir = Join-Path $scriptRoot 'logs'
+$logDir = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'logs\OpenClawGateway'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 $logFile = Join-Path $logDir 'openclaw_guardian.log'
 function Log([string]$msg) {
@@ -100,7 +100,7 @@ Log "--- Setting OpenClaw service environment variables at Machine level ---"
 Log "[OK] Set all OpenClaw service environment variables at Machine level"
 
 # ── Step 3: Validate openclaw.json auth config ───────────────────────────
-$configPath = 'C:\Users\10979\.openclaw\openclaw.json'
+$configPath = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'openclaw.json'
 if (Test-Path $configPath) {
     $config = Get-Content $configPath -Raw | ConvertFrom-Json
     $authMode = $config.gateway.auth.mode
@@ -219,10 +219,13 @@ try {
     Log "[INFO] No existing task to remove"
 }
 
-# Action: run the node.exe directly (runs hidden in Session 0/S4U)
+# Action: run node.exe directly (runs hidden in Session 0/S4U)
+$nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
+$nodePath = if ($nodeCommand) { $nodeCommand.Source } else { 'C:\Program Files\nodejs\node.exe' }
+$openclawEntry = Join-Path $env:APPDATA 'npm\node_modules\openclaw\dist\index.js'
 $action = New-ScheduledTaskAction `
-    -Execute 'C:\Program Files\nodejs\node.exe' `
-    -Argument 'C:\Users\10979\AppData\Roaming\npm\node_modules\openclaw\dist\index.js gateway --port 18789' `
+    -Execute $nodePath `
+    -Argument "--max-old-space-size=1536 `"$openclawEntry`" gateway --port 18789" `
     -WorkingDirectory (Split-Path $GatewayCmdPath -Parent)
 
 # Trigger: BOOT trigger (runs before any user logs in)
@@ -266,7 +269,7 @@ Log "  LogonType: S4U (no interactive window, no stored password needed)"
 Log "  RunLevel:  Highest"
 Log "  Hidden:    Yes"
 Log "  Restart:   On failure, ${RestartDelaySeconds}s interval, max $MaxRestartCount retries"
-Log "  Action:    node.exe directly (Job Object managed)"
+Log "  Action:    node.exe directly with --max-old-space-size=1536"
 
 # ── Step 7: Verify the registration ─────────────────────────────────────
 Log "--- Verifying registration ---"

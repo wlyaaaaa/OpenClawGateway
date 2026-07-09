@@ -2,6 +2,7 @@ import sqlite3
 import json
 import os
 import sys
+from pathlib import Path
 
 def main():
     if len(sys.argv) < 3:
@@ -11,7 +12,7 @@ def main():
     provider = sys.argv[1]
     key = sys.argv[2]
     
-    db_path = r"C:\Users\10979\.openclaw\agents\main\agent\openclaw-agent.sqlite"
+    db_path = str(Path.home() / ".openclaw" / "agents" / "main" / "agent" / "openclaw-agent.sqlite")
     if not os.path.exists(db_path):
         print(f"Database {db_path} does not exist, skipping SQLite update.")
         sys.exit(0)

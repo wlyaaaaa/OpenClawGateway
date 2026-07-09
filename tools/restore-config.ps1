@@ -1,6 +1,6 @@
-<#
+﻿<#
 .SYNOPSIS  从备份恢复 OpenClaw 配置与密钥。
-.EXAMPLE   .\restore-config.ps1 -From "E:\Projects\Tools\OpenClawGateway\secrets-backup\full-20260619-220000"
+.EXAMPLE   .\restore-config.ps1 -From "$env:USERPROFILE\.openclaw\secrets-backup\full-20260619-220000"
 .EXAMPLE   .\restore-config.ps1 -Latest        # 自动选最新 full-* 备份
 .NOTES     恢复前会停网关、并把当前配置另存为 .pre-restore 以便回退。
 #>
@@ -13,7 +13,8 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 if ($Latest -or -not $From) {
-    $From = (Get-ChildItem 'E:\Projects\Tools\OpenClawGateway\secrets-backup' -Directory -Filter 'full-*' -ErrorAction SilentlyContinue |
+    $privateBackupRoot = Join-Path $env:USERPROFILE '.openclaw\secrets-backup'
+    $From = (Get-ChildItem $privateBackupRoot -Directory -Filter 'full-*' -ErrorAction SilentlyContinue |
         Sort-Object Name -Descending | Select-Object -First 1).FullName
 }
 if (-not $From -or -not (Test-Path $From)) { Write-Warn2 "找不到备份目录，请用 -From <路径>。"; return }

@@ -88,7 +88,8 @@ Register-ScheduledTask 'OpenClaw Heartbeat' -Action $hb -Trigger $hbT -Principal
 $up = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$repo\openclaw_update.ps1`""
 $upT = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 4am
 Register-ScheduledTask 'OpenClaw Update' -Action $up -Trigger $upT -Principal $pr2 -Settings (New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable) -Force | Out-Null
-Info '三个任务已注册（Heartbeat/Update 默认启用，可按需 Disable）。'
+Disable-ScheduledTask -TaskName 'OpenClaw Update' | Out-Null
+Info 'Gateway/Heartbeat 已注册；OpenClaw Update 已注册但保持 Disabled（按需手动更新）。'
 
 # 6. Cline 全局规则 + 工作区联动 skills
 Step '6/6 安装 Cline 全局规则 + 联动 skills'

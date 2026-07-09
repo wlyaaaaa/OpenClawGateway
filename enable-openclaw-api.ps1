@@ -12,16 +12,38 @@
   以管理员 PowerShell 运行。
 #>
 $ErrorActionPreference = 'Stop'
-$oc   = 'C:\Users\10979\.openclaw'
+$oc   = Join-Path $env:USERPROFILE '.openclaw'
 $root = $PSScriptRoot; if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
-$logDir = Join-Path $root 'logs'; if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
+$logDir = Join-Path $oc 'logs\OpenClawGateway'; if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
 $log = Join-Path $logDir 'api-toggle.log'
 function Log([string]$m){ $l = '{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m; $l | Out-File $log -Append -Encoding utf8; Write-Host $l }
 
 $task     = 'OpenClaw Gateway'
 $authFile = Join-Path $oc 'auth-profiles.json'
+$cfgFile  = Join-Path $oc 'openclaw.json'
 $ts       = 'C:\Program Files\Tailscale\tailscale.exe'
 $stateFile = Join-Path $logDir 'api-state.json'
+$secretBackupRoot = $env:OPENCLAW_SECRET_BACKUP_DIR
+if (-not $secretBackupRoot) { $secretBackupRoot = Join-Path $oc 'secrets-backup' }
+
+function Get-TelegramOwnerIds {
+    $raw = $env:OC_TELEGRAM_USER_ID
+    if (-not $raw -and (Test-Path $cfgFile)) {
+        try {
+            $cfg = Get-Content $cfgFile -Raw | ConvertFrom-Json
+            $raw = @($cfg.channels.telegram.allowFrom |
+                Where-Object { "$_" -match '^\d+$' } |
+                Select-Object -First 1) -join ','
+        } catch {}
+    }
+    if (-not $raw) {
+        throw 'Set OC_TELEGRAM_USER_ID or keep a numeric channels.telegram.allowFrom value in openclaw.json before changing API mode.'
+    }
+
+    $ids = @($raw -split '[,;\s]+' | Where-Object { $_ } | ForEach-Object { [int64]$_ })
+    if ($ids.Count -eq 0) { throw 'OC_TELEGRAM_USER_ID did not contain a numeric Telegram user ID.' }
+    return $ids
+}
 
 Log '=== ENABLE: 退出安全模式，恢复 API ==='
 
@@ -29,7 +51,7 @@ Log '=== ENABLE: 退出安全模式，恢复 API ==='
 $backupDir = $null
 if (Test-Path $stateFile) { $backupDir = (Get-Content $stateFile -Raw | ConvertFrom-Json).backup }
 if (-not $backupDir -or -not (Test-Path $backupDir)) {
-    $latest = Get-ChildItem (Join-Path $root 'secrets-backup') -Directory -ErrorAction SilentlyContinue |
+    $latest = Get-ChildItem $secretBackupRoot -Directory -ErrorAction SilentlyContinue |
         Sort-Object Name -Descending | Select-Object -First 1
     if ($latest) { $backupDir = $latest.FullName }
 }
@@ -48,13 +70,12 @@ if (Test-Path $bakAuth) { Copy-Item $bakAuth $authFile -Force; Log '已从备份
 else { Log '[WARN] 备份中无 auth-profiles.json；请手动填回 key' }
 
 # 3. 收敛 Telegram 白名单 / 通道 stable / 开 funnel；不改 Telegram 或 Feishu enabled
-$patch = @'
-{
-  "update": { "auto": { "enabled": false }, "channel": "stable", "checkOnStart": true },
-  "channels": { "telegram": { "allowFrom": [8320970051], "groupAllowFrom": [8320970051] } },
-  "gateway": { "tailscale": { "mode": "funnel" } }
-}
-'@
+$telegramOwnerIds = Get-TelegramOwnerIds
+$patch = @{
+    update = @{ auto = @{ enabled = $false }; channel = 'stable'; checkOnStart = $true }
+    channels = @{ telegram = @{ allowFrom = $telegramOwnerIds; groupAllowFrom = $telegramOwnerIds } }
+    gateway = @{ tailscale = @{ mode = 'funnel' } }
+} | ConvertTo-Json -Depth 10
 $patchFile = Join-Path $logDir 'enable.patch.json'
 $patch | Set-Content $patchFile -Encoding utf8
 & openclaw config patch --file $patchFile | ForEach-Object { Log "config: $_" }

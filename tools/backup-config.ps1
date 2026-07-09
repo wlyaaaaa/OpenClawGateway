@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS  备份 OpenClaw 全部配置与密钥（重装/迁移用）。
 .DESCRIPTION
   打包 openclaw.json、auth-profiles.json、config.yml、.env、credentials\ 等到
@@ -7,7 +7,7 @@
 .EXAMPLE   .\backup-config.ps1 -Dest D:\OpenClawBackups
 #>
 param(
-    [string]$Dest = 'E:\Projects\Tools\OpenClawGateway\secrets-backup'
+    [string]$Dest = (Join-Path $env:USERPROFILE '.openclaw\secrets-backup')
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
@@ -31,4 +31,4 @@ try {
 } catch { Write-Info "原生 backup 不可用，跳过（文件级备份已完成）" }
 
 Write-Host "`n✅ 备份完成 → $dir" -ForegroundColor Green
-Write-Warn2 "该目录含明文密钥，请勿提交到任何仓库（已被 .gitignore 排除）。"
+Write-Warn2 "该目录含明文密钥，请勿提交到任何公开仓库。"

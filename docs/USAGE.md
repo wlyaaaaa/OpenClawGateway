@@ -36,7 +36,7 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 
 ## 4. 渠道与安全
 - 当前 **Telegram** 和 **飞书** 的 `enabled` 长期开关保持开启；API key 脚本不得改写它们。
-- Telegram 白名单仅你的 ID（`8320970051`，已去 `"*"`）；飞书也必须使用正确白名单（飞书用 open_id，别用 `"*"`）。
+- Telegram 白名单仅 owner ID；公开仓库只写 `<TELEGRAM_USER_ID>`，实际值从私有 `openclaw.json` 或 `OC_TELEGRAM_USER_ID` 注入，别用 `"*"`。飞书也必须使用正确白名单（飞书用 open_id，别用 `"*"`）。
 - Google Chat 默认关；要用先填正确白名单再启用。
 - `commands.bash` 开着＝聊天可在本机执行命令，务必只对可信白名单开放。
 

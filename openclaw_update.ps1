@@ -1,18 +1,19 @@
-# =====================================================================
-#  OpenClaw Gateway Auto-Update Helper (channel-aware, China-resilient)
+﻿# =====================================================================
+#  OpenClaw Gateway Manual Update Helper (channel-aware, China-resilient)
 #  - Reads update.channel from config (stable/beta/dev) -> npm dist-tag
 #  - Updates ONLY the npm package (no `openclaw update` doctor), so the
 #    custom silent-boot scheduled task is never clobbered.
 #  - Restarts the Gateway task and runs a health check.
-#  Log: E:\Projects\Tools\OpenClawGateway\logs\openclaw_update.log
-#  Run elevated (Administrator) — invoked weekly by the "OpenClaw Update" task.
+#  Log: %USERPROFILE%\.openclaw\logs\OpenClawGateway\openclaw_update.log
+#  Run elevated (Administrator) when manually updating. The "OpenClaw Update"
+#  task is registered but intentionally Disabled by bootstrap/setup.ps1.
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
 if (-not $root) { $root = Split-Path -Parent $MyInvocation.MyCommand.Path }
 if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
-$logDir = Join-Path $root 'logs'
+$logDir = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'logs\OpenClawGateway'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 $logFile = Join-Path $logDir 'openclaw_update.log'
 
@@ -22,7 +23,7 @@ function Log([string]$m) {
     Write-Host $line
 }
 
-Log "=== OpenClaw Update — start ==="
+Log "=== OpenClaw manual update - start ==="
 
 # Elevation check
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
@@ -91,7 +92,7 @@ try {
         }
     }
     if ($healthy) { Log "[OK] gateway healthy on $port after update" }
-    else { Log "[ERROR] port $port unresponsive after update — see C:\Users\10979\.openclaw\gateway.log" }
+    else { Log "[ERROR] port $port unresponsive after update - see $(Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'gateway.log')" }
 }
 catch {
     Log "[ERROR] update failed: $_"

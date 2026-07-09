@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$DryRun,
     [string]$ManifestPath
 )
@@ -12,11 +12,11 @@ param(
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$src       = "C:\Users\10979\.codex"
-$root      = "E:\Projects\Tools\OpenClawGateway\codex-memory-backup"
-$cloudRepo = "E:\CodexMemoryBackup"   # private repo: wlyaaaaa/codex-memory
+$src       = Join-Path $env:USERPROFILE ".codex"
+$root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\codex"
+$cloudRepo = "E:\Projects\Backups\codex-memory"   # private repo: wlyaaaaa/codex-memory
 $keep      = 30
-$log       = "E:\Projects\Tools\OpenClawGateway\logs\backup-codex-memory.log"
+$log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-codex-memory.log"
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -159,7 +159,7 @@ function Write-Readme([string]$path) {
         '',
         '## Restore',
         '',
-        'Copy the repository contents back to `C:\Users\10979\.codex\` with the same relative paths. This restores small config, memories, and skill files only, not auth, raw sessions, caches, or runtime databases.'
+        'Copy the repository contents back to `%USERPROFILE%\.codex\` with the same relative paths. This restores small config, memories, and skill files only, not auth, raw sessions, caches, or runtime databases.'
     ) -join [Environment]::NewLine
     $content | Out-File -FilePath (Join-Path $path 'README.md') -Encoding utf8
 }

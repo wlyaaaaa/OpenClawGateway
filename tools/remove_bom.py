@@ -1,10 +1,13 @@
 import os
+from pathlib import Path
+
+openclaw_dir = Path.home() / ".openclaw"
 
 files_to_fix = [
-    r"C:\Users\10979\.openclaw\openclaw.json",
-    r"C:\Users\10979\.openclaw\auth-profiles.json",
-    r"C:\Users\10979\.openclaw\config.yml",
-    r"C:\Users\10979\.openclaw\agents\main\agent\auth-profiles.json"
+    openclaw_dir / "openclaw.json",
+    openclaw_dir / "auth-profiles.json",
+    openclaw_dir / "config.yml",
+    openclaw_dir / "agents" / "main" / "agent" / "auth-profiles.json"
 ]
 
 def remove_bom(file_path):

@@ -12,7 +12,7 @@ E:\Projects\Tools\OpenClawGateway\
 ├── set-api.ps1                         # ★快速：全局设 key/模型/网站 + 提供方档案
 ├── openclaw_silent_boot_guardian.ps1   # 服务：重注册静默开机自启任务
 ├── openclaw_heartbeat.ps1              # 服务：端口看门狗（由计划任务调用）
-├── openclaw_update.ps1                 # 服务：通道感知自动更新
+├── openclaw_update.ps1                 # 服务：通道感知手动更新（任务默认 Disabled）
 ├── openclaw_run_hidden.vbs             # 服务：零窗口启动包装器
 ├── disable-openclaw-api.ps1            # 引擎：进入安全模式（零花费，被 api.ps1 调用）
 ├── enable-openclaw-api.ps1            # 引擎：恢复 API 使用（被 api.ps1 调用）
@@ -52,7 +52,7 @@ E:\Projects\Tools\OpenClawGateway\
 .\set-api.ps1 -Profile deepseek      # 一键切到 deepseek 档案
 .\set-api.ps1 -List                  # 列出所有档案
 ```
-档案存于 `.secrets\providers.json`（已 gitignore）。改动前自动备份，`-Test` 改后自测。
+档案存于 `C:\Users\<USER>\.openclaw\.secrets\providers.json`。改动前自动备份，`-Test` 改后自测。
 
 ---
 
@@ -68,7 +68,7 @@ powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
 ### `openclaw_update.ps1`
 读取 `update.channel`（stable→`@latest`、beta→`@beta`、dev→`@dev`），**仅用 npm** 更新
 （不触发 `openclaw update` 的 doctor，故不会覆盖自定义隐藏启动任务），比对版本→更新→重启→健康检查。
-由 `OpenClaw Update` 计划任务每周调用，也可手动：
+默认不自动运行；`OpenClaw Update` 任务保留但 Disabled，需要时手动：
 ```powershell
 powershell -File .\openclaw_update.ps1
 ```
@@ -85,7 +85,7 @@ powershell -File .\openclaw_update.ps1
 powershell -File .\disable-openclaw-api.ps1     # 闲时省钱
 powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 ```
-> 备份位于 `secrets-backup\`（已 gitignore）。API key 脚本永远不改 Telegram/飞书的 `enabled` 开关；IM 是否在线由长期配置决定。
+> 备份位于 `C:\Users\<USER>\.openclaw\secrets-backup\`。API key 脚本永远不改 Telegram/飞书的 `enabled` 开关；IM 是否在线由长期配置决定。
 
 ---
 
@@ -125,10 +125,10 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 
 ### `backup-memory.ps1` — 备份 Claude 记忆（本地 + 私有云）
 ```powershell
-.\tools\backup-memory.ps1     # ①本地轮换快照 memory-backup\<时间戳>\（留30份，gitignore）
+.\tools\backup-memory.ps1     # ①本地轮换快照 C:\Users\<USER>\.openclaw\memory-backup\claude\<时间戳>\（留30份）
                               # ②镜像并推送到私有云仓库 wlyaaaaa/claude-memory（E:\Projects\Backups\claude-memory）
 ```
-计划任务「OpenClaw Memory Backup」每日 **20:20 + 22:20** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**），本地快照不入公开仓库；云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后按项目目录把 `memory\*.md` 拷回对应 `C:\Users\10979\.claude\projects\<project>\memory\`。
+计划任务「OpenClaw Memory Backup」每日 **20:20 + 22:20** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**），本地快照不入公开仓库；云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后按项目目录把 `memory\*.md` 拷回对应 `C:\Users\<USER>\.claude\projects\<project>\memory\`。
 
 ### `setup-codeg-bridge.ps1` — 一键接 codeg
 ```powershell
@@ -147,4 +147,4 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 ## 备注
 - 多数 `tools\` 脚本会**重启网关**以即时生效；加 `-NoRestart` 可延后到下次启动。
 - 标量配置经原生 `openclaw config set/patch` 校验写入，避免手改 JSON 出错。
-- 密钥仅写入本机 `C:\Users\10979\.openclaw\`，**永不入库**。
+- 密钥仅写入本机 `C:\Users\<USER>\.openclaw\`，**永不入库**。

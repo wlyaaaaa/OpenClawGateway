@@ -9,10 +9,10 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$srcCfg = "C:\Users\10979\.openclaw"
-$srcWs  = "C:\Users\10979\.openclaw\workspace"
+$srcCfg = Join-Path $env:USERPROFILE ".openclaw"
+$srcWs  = Join-Path $srcCfg "workspace"
 $repo   = "E:\Projects\Backups\openclaw-backup"
-$log    = "E:\Projects\Tools\OpenClawGateway\logs\backup-openclaw.log"
+$log    = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-openclaw.log"
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m

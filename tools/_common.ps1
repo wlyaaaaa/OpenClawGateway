@@ -1,7 +1,7 @@
 ﻿# =====================================================================
 #  _common.ps1 — OpenClaw 工具集公共函数（被各脚本 dot-source 引用）
 # =====================================================================
-$script:OC   = 'C:\Users\10979\.openclaw'
+$script:OC   = Join-Path $env:USERPROFILE '.openclaw'
 $script:TASK = 'OpenClaw Gateway'
 $script:PORT = 18789
 $script:AUTH = Join-Path $OC 'auth-profiles.json'

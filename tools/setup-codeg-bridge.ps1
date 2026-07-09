@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 #  setup-codeg-bridge.ps1 — 一键配置 codeg ↔ OpenClaw 接入
 # ---------------------------------------------------------------------
 #  背景（为什么是这条路）：
@@ -17,8 +17,8 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$clineSettings = "C:\Users\10979\.cline\data\settings\cline_mcp_settings.json"
-$openclawCmd   = "C:\Users\10979\AppData\Roaming\npm\openclaw.cmd"
+$clineSettings = Join-Path $env:USERPROFILE ".cline\data\settings\cline_mcp_settings.json"
+$openclawCmd   = Join-Path $env:APPDATA "npm\openclaw.cmd"
 $gatewayUrl    = "http://127.0.0.1:18789"
 
 Write-Host "=== setup-codeg-bridge: 配置 openclaw-bridge MCP ==="

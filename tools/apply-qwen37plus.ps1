@@ -9,10 +9,10 @@ try {
     python (Join-Path $PSScriptRoot "register_qwen37plus.py")
     
     # Session clearing with safety backup
-    $sessionDir = 'C:\Users\10979\.openclaw\agents\main\sessions'
+    $sessionDir = Join-Path $OC 'agents\main\sessions'
     if (Test-Path $sessionDir) {
         $timestamp = (Get-Date -Format 'yyyyMMdd-HHmmss')
-        $backupDir = "C:\Users\10979\.openclaw\session-backup-$timestamp"
+        $backupDir = Join-Path $OC "session-backup-$timestamp"
         Write-Host "Archiving existing sessions to $backupDir..."
         New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
         

@@ -37,7 +37,15 @@ foreach ($ch in 'telegram','feishu','googlechat') {
     Line ("渠道·$ch") (Get-OCConfig "channels.$ch.enabled")
 }
 
-$funnel = & 'C:\Program Files\Tailscale\tailscale.exe' funnel status 2>$null | Select-Object -First 1
-Line 'Funnel' $(if($funnel -match 'http'){$funnel}else{'off / 未配置'})
+$tailscale = Get-Command tailscale.exe -ErrorAction SilentlyContinue
+if (-not $tailscale -and (Test-Path 'C:\Program Files\Tailscale\tailscale.exe')) {
+    $tailscale = [pscustomobject]@{ Source = 'C:\Program Files\Tailscale\tailscale.exe' }
+}
+if ($tailscale) {
+    $funnel = & $tailscale.Source funnel status 2>$null | Select-Object -First 1
+    Line 'Funnel' $(if($funnel -match 'http'){$funnel}else{'off / 未配置'})
+} else {
+    Line 'Funnel' 'tailscale.exe 未找到' $false
+}
 
 Write-Host "`n  ╚═══════════════════════════════════════════════════════╝`n" -ForegroundColor Green

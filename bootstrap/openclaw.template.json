@@ -137,11 +137,11 @@
       "botToken": "<TELEGRAM_BOT_TOKEN>",
       "dmPolicy": "open",
       "allowFrom": [
-        8320970051
+        "<TELEGRAM_USER_ID>"
       ],
       "configWrites": true,
       "groupAllowFrom": [
-        8320970051
+        "<TELEGRAM_USER_ID>"
       ]
     }
   },
@@ -176,7 +176,7 @@
   },
   "commands": {
     "ownerAllowFrom": [
-      "telegram:8320970051"
+      "telegram:<TELEGRAM_USER_ID>"
     ],
     "native": true,
     "nativeSkills": true,
