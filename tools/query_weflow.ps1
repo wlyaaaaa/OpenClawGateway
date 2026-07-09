@@ -1,5 +1,5 @@
-$cfg=@{}
-Get-Content 'E:\WeFlowBridge\.env' | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object { $k,$v=$_ -split '=',2; $cfg[$k.Trim()]=$v.Trim() }
+﻿$cfg=@{}
+Get-Content 'E:\Projects\Tools\WeFlowBridge\.env' | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object { $k,$v=$_ -split '=',2; $cfg[$k.Trim()]=$v.Trim() }
 
 $base = $cfg['WEFLOW_BASE_URL']
 $token_val = $cfg['WEFLOW_TOKEN']
@@ -8,17 +8,6 @@ Write-Host ("base: " + $base)
 Write-Host ("token_hash: " + ($token_val.Substring(0,10)) + "...")
 
 $headers = @{ Authorization="Bearer $token_val" }
-
-# First health check with the auth token they provided
-$alt_headers = @{ Authorization="Bearer ccbfcc1c1546a9c1bb1084ee8feb9006" }
-
-Write-Host "=== Health with provided token ==="
-try {
-    $h1 = Invoke-RestMethod "$base/health?access_token=ccbfcc1c1546a9c1bb1084ee8feb9006" -Headers $alt_headers
-    Write-Host ("health: " + ($h1 | ConvertTo-Json))
-} catch {
-    Write-Host ("alt_auth error: " + $_.Exception.Message)
-}
 
 Write-Host "=== Health with .env token ==="
 try {

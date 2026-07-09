@@ -13,18 +13,18 @@
 本机 **OpenClaw v2026.6.10**（个人智能体网关，昵称"小龙虾"）+ 三个协作件：
 - **OpenClaw**：主脑网关。配置在 `C:\Users\10979\.openclaw\`（`openclaw.json` 配置、`workspace\` 指令+skills、`auth-profiles.json` 密钥）。loopback:18789。
 - **Cline**（`C:\Users\10979\.cline\`，CLI 全局装）：OpenClaw 的**廉价编码手**。真实配置在 `data\settings\providers.json → providers.openai-compatible.settings`（不是 globalState！）。
-- **WeFlow**（`C:\Program Files\WeFlow\WeFlow.exe`，API 在 `127.0.0.1:5031`）：读微信消息。bridge 在 `E:\WeFlowBridge`（公开仓库），token 在其 `.env`。
+- **WeFlow**（`C:\Program Files\WeFlow\WeFlow.exe`，API 在 `127.0.0.1:5031`）：读微信消息。bridge 在 `E:\Projects\Tools\WeFlowBridge`（公开仓库），token 在其 `.env`。
 
 ## 2. 仓库（都在用户 GitHub `wlyaaaaa`）
 | 本地 | GitHub | 说明 |
 |------|--------|------|
 | `E:\Projects\Tools\OpenClawGateway` | OpenClawGateway (public) | **本体**：运维脚本/文档/bootstrap/journal/auto-push |
-| `E:\WeFlowBridge` | WeFlowBridge (public, **master 分支**) | 微信 API bridge + 看门狗 |
+| `E:\Projects\Tools\WeFlowBridge` | WeFlowBridge (public, **master 分支**) | 微信 API bridge + 看门狗 |
 | `E:\ClineAgent` | 无 remote（本地） | Cline 工作沙箱，含 .clinerules |
-| `E:\RamdiskGuardian` | RamdiskGuardian (public) | 独立 RAM 盘项目（已清空 openclaw） |
-| `E:\TimeAudit` | TimeAudit (public) | 有 `build_docs_pdf.py`（md→PDF，白绿主题） |
-| `E:\ClaudeMemoryBackup` | claude-memory (**private**) | Claude 记忆云备份（已脱敏）；新机拷 `*.md` 回 `.claude\...\memory\` 即恢复 |
-| `E:\OpenClawBackup` | openclaw-backup (**private**) | OpenClaw config+workspace 云备份（含密钥/人格/记忆，恢复用） |
+| `E:\Projects\Tools\RamdiskGuardian` | RamdiskGuardian (public) | 独立 RAM 盘项目（已清空 openclaw） |
+| `E:\Projects\Tools\TimeAudit` | TimeAudit (public) | 有 `build_docs_pdf.py`（md→PDF，白绿主题） |
+| `E:\Projects\Backups\claude-memory` | claude-memory (**private**) | Claude 记忆云备份（已脱敏）；新机按项目目录拷 `memory\*.md` 回 `.claude\...\memory\` 即恢复 |
+| `E:\Projects\Backups\openclaw-backup` | openclaw-backup (**private**) | OpenClaw config+workspace 云备份（含密钥/人格/记忆，恢复用） |
 
 ## 3. 当前模型/端点状态（易变，不写死进公开文档）
 - OpenClaw 主模型 = `qwen3.7-plus`（**手机+电脑默认**，用户指定）；Cline 也用同端点此模型。

@@ -1,9 +1,9 @@
-# =====================================================================
+﻿# =====================================================================
 #  backup-openclaw.ps1 — 备份 OpenClaw 配置+工作区到私有云（恢复用）
 # ---------------------------------------------------------------------
 #  config（openclaw.json/auth-profiles.json/config.yml/.env，含密钥）
 #  + workspace（人格/记忆/技能/脚本，排除 node_modules）
-#  → 本地 E:\OpenClawBackup → 私有仓库 wlyaaaaa/openclaw-backup。
+#  → 本地 E:\Projects\Backups\openclaw-backup → 私有仓库 wlyaaaaa/openclaw-backup。
 #  由计划任务每日 20:20 + 22:20 自动跑。**私有仓库，含密钥，切勿公开。**
 #  用法：powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\backup-openclaw.ps1
 # =====================================================================
@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 $srcCfg = "C:\Users\10979\.openclaw"
 $srcWs  = "C:\Users\10979\.openclaw\workspace"
-$repo   = "E:\OpenClawBackup"
+$repo   = "E:\Projects\Backups\openclaw-backup"
 $log    = "E:\Projects\Tools\OpenClawGateway\logs\backup-openclaw.log"
 
 function Log([string]$m) {

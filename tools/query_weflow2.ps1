@@ -1,5 +1,5 @@
-$cfg=@{}
-Get-Content 'E:\WeFlowBridge\.env' | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object { $k,$v=$_ -split '=',2; $cfg[$k.Trim()]=$v.Trim() }
+﻿$cfg=@{}
+Get-Content 'E:\Projects\Tools\WeFlowBridge\.env' | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object { $k,$v=$_ -split '=',2; $cfg[$k.Trim()]=$v.Trim() }
 
 $base = $cfg['WEFLOW_BASE_URL']
 $token_val = $cfg['WEFLOW_TOKEN']
