@@ -5,6 +5,12 @@
       "model": {
         "primary": "openai/qwen3.7-plus"
       },
+      "heartbeat": {
+        "every": "30m",
+        "model": "openai/qwen3.7-plus",
+        "lightContext": true,
+        "isolatedSession": true
+      },
       "models": {
         "openai/qwen3.7-plus": {},
         "openai/qwen3-max-2026-01-23": {}
