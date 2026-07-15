@@ -23,7 +23,9 @@ E:\Projects\Tools\OpenClawGateway\
     ├── restore-config.ps1              # 从备份恢复
     ├── status.ps1                      # 一屏状态面板
     ├── build_docs_pdf.py               # 文档导出 PDF（白色纯绿主题）
-    └── restart_gateway.ps1             # 服务：异步安全重启网关（脱离进程树防自杀卡死）
+    ├── restart_gateway.ps1             # 服务：异步安全重启网关（脱离进程树防自杀卡死）
+    ├── managed-component.ps1           # AI 路由 adapter：结构化 status/update JSON
+    └── _update_lib.ps1                 # 共享库：版本解析、状态机、端口探活、ResultPath
 ```
 
 ---
@@ -66,11 +68,15 @@ powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
 ```
 
 ### `openclaw_update.ps1`
-读取 `update.channel`（stable→`@latest`、beta→`@beta`、dev→`@dev`），**仅用 npm** 更新
-（不触发 `openclaw update` 的 doctor，故不会覆盖自定义隐藏启动任务），比对版本→更新→重启→健康检查。
-默认不自动运行；`OpenClaw Update` 任务保留但 Disabled，需要时手动：
+人工入口是 `tools/managed-component.ps1 -Update -Json` 的薄包装；AI 与人工更新共用同一套
+backup→preflight→npm update→wait→verify 状态机，不再维护第二份更新实现。
+- 更新前自动调用 `tools/backup-config.ps1 -Json`，备份失败立即停止。
+- 按 stable→`@latest`、beta→`@beta`、dev→`@dev` 解析目标版本；目标未知不更新。
+- 探活要求端口连续 Listen ≥10s（最长约 120s），并验证关键配置和 `OpenClaw Update` 仍为 Disabled。
+- 大版本后若卡在插件迁移：先排查 owner 日志；**不要**默认 `doctor --fix`。
+默认不自动运行；`OpenClaw Update` 任务保留但 Disabled，需要时手动（必须管理员）：
 ```powershell
-powershell -File .\openclaw_update.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\openclaw_update.ps1
 ```
 
 ### `openclaw_heartbeat.ps1`

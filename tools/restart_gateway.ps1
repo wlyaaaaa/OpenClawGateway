@@ -22,6 +22,12 @@ Log "Initiating safe async gateway restart..."
 # This escapes the scheduled task's process tree, preventing it from being killed when Stop-ScheduledTask is run.
 $command = "powershell.exe -NoProfile -WindowStyle Hidden -Command `& { Start-Sleep -Seconds 2; Stop-ScheduledTask -TaskName '$taskName' -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; Start-ScheduledTask -TaskName '$taskName'; }"
 
-Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList $command | Out-Null
+$created = Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList $command
+if (-not $created -or [int]$created.ReturnValue -ne 0) {
+    $code = if ($created) { [int]$created.ReturnValue } else { -1 }
+    Log "Failed to spawn restart process via WMI (ReturnValue=$code)."
+    exit 1
+}
 
-Log "Async restart process spawned successfully via WMI."
+Log "Async restart process spawned successfully via WMI (pid=$($created.ProcessId))."
+exit 0

@@ -58,10 +58,10 @@ Disable-ScheduledTask -TaskName 'OpenClaw Update'
 ```
 
 ## 4. 更新机制
-- 通道：`openclaw config get update.channel`（推荐 **stable**）。`checkOnStart=false`（避免开机
-  早期 registry 超时拖崩，这是历史崩溃根因）。
+- 通道：`openclaw config get update.channel`（推荐 **stable**）。`checkOnStart=false`（避免开机早期 registry 超时拖崩，这是历史崩溃根因）。
 - 默认：`OpenClaw Update` 任务保留但 **Disabled**，避免无人审计自动升级破坏 API 模式、白名单或启动参数。
-- 手动：需要时运行 `.\openclaw_update.ps1`；原生 `openclaw update --yes` 会跑 doctor，可能重写本机配置，谨慎使用。
+- **AI 路由更新**（推荐）：`pwsh -NoProfile -File E:\PCConfig\tools\Invoke-ManagedSoftware.ps1 -Id 小龙虾 -Action Update -Json`。adapter `tools/managed-component.ps1` 原子完成 backup→npm install→wait→verify，输出结构化回执。需管理员权限。
+- **手动更新**：需要时运行 `.\openclaw_update.ps1`；它调用同一个 owner adapter，自动完成必需备份与验收。原生 `openclaw update --yes` 会跑 doctor，可能重写本机配置，谨慎使用。
 
 ## 5. 备份策略
 ```powershell

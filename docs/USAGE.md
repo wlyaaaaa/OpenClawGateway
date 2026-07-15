@@ -63,10 +63,10 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 
 ## 8. ⚠️ 自动更新：不要点应用内的"自动更新"按钮
 - **应用内/原生 `openclaw update`** 会跑 **doctor + schema 迁移**，可能：补回 `*` 白名单、**把 `api` 改回 `responses`→ 技能全部 400 失败**、覆盖自定义开机任务。**风险高，别按。**
-- **要更新就跑** `powershell -File E:\Projects\Tools\OpenClawGateway\openclaw_update.ps1`（**只用 npm，不跑 doctor**，且更新后**自动重断言 `api=openai-completions`** 自愈）。
-- 万一手滑点了应用内更新：**事后跑一次 `openclaw_update.ps1`** 即可自愈关键配置。
+- **AI 路由更新**：`pwsh -NoProfile -File E:\PCConfig\tools\Invoke-ManagedSoftware.ps1 -Id 小龙虾 -Action Status -Json` 查状态；`-Action Update -Json` 安全更新（需管理员；非管理员返回 `elevation_required`）。adapter `tools/managed-component.ps1` 原子完成备份→更新→等待→验证。
+- **手动更新**：`powershell -NoProfile -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\openclaw_update.ps1`。该入口调用同一个 owner adapter，自动执行必需备份，**只用 npm、不跑 doctor**；版本、关键配置、任务状态和端口稳定性全部通过才算成功。
+- 万一手滑点了应用内更新：不要把再次更新当成修复；按 `MAINTENANCE.md` 检查关键配置与任务状态，版本相等时 adapter 只报告状态、不做修复。
 - 永远别跑 `openclaw doctor --fix`（它会补回 `*`）。
-- 更新前先 `tools/backup-config.ps1` 备份，坏了能回滚。
 
 ## 9. 在 codeg 控制台里用 OpenClaw（详见 [CODEG.md](CODEG.md)）
 - ❌ **别用** codeg 的「OpenClaw」ACP agent —— per-session MCP + auth 握手是 codeg 的 bug，走不通。
