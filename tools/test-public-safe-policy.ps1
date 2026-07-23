@@ -51,9 +51,28 @@ if ($guardian -notmatch '--max-old-space-size=1536') {
 }
 
 $autopush = Read-Text 'tools\auto-archive-push.ps1'
-foreach ($needle in @('git -C $repo ls-files', 'journal/', 'logs/', '.secrets/', 'secrets-backup/', 'auth-profiles.json', 'openclaw_task.xml')) {
+foreach ($needle in @("Arguments @('ls-files')", 'journal/', 'logs/', '.secrets/', 'secrets-backup/', 'auth-profiles.json', 'openclaw_task.xml')) {
     if ($autopush -notlike "*$needle*") {
         Add-Violation "tools/auto-archive-push.ps1 missing public-safe guard: $needle"
+    }
+}
+
+$gitSync = Read-Text 'tools\git-cloud-sync.ps1'
+foreach ($needle in @("'fetch', '--quiet', '--prune'", "'rev-list', '--left-right', '--count'", "'ls-remote', '--exit-code'", 'Fresh remote OID mismatch', 'GIT_TERMINAL_PROMPT', 'GCM_INTERACTIVE')) {
+    if ($gitSync -notlike "*$needle*") {
+        Add-Violation "tools/git-cloud-sync.ps1 missing verified-sync guard: $needle"
+    }
+}
+
+$memoryWrapper = Read-Text 'tools\memory_backup_hidden.vbs'
+$secondRun = $memoryWrapper.IndexOf('backup-openclaw.ps1')
+$firstFailureExit = $memoryWrapper.IndexOf('If firstExitCode <> 0 Then')
+if ($secondRun -lt 0 -or $firstFailureExit -lt 0 -or $secondRun -gt $firstFailureExit) {
+    Add-Violation 'memory backup hidden wrapper must attempt backup-openclaw before returning the first failure'
+}
+foreach ($needle in @(', 0, True)', 'WScript.Quit firstExitCode', 'WScript.Quit exitCode')) {
+    if ($memoryWrapper -notlike "*$needle*") {
+        Add-Violation "memory backup hidden wrapper missing hidden/wait/exit propagation guard: $needle"
     }
 }
 

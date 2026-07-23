@@ -70,6 +70,7 @@ Disable-ScheduledTask -TaskName 'OpenClaw Update'
 ```
 重点备份：`openclaw.json`、`auth-profiles.json`、`config.yml`、`.env`、`credentials\`、`gateway.cmd`。
 记忆备份双保险：①本地 `C:\Users\<USER>\.openclaw\memory-backup\claude\<时间戳>\`（留 30 份）②私有云仓库 **`wlyaaaaa/claude-memory`**（已脱敏，本地工作目录 `E:\Projects\Backups\claude-memory`）。计划任务每日 20:20+22:20 自动两者都做。
+Git 云备份不以“工作区无变化”作为成功依据：脚本仍会检查 upstream、补推 ahead commit，并从远端回读分支 OID。behind/diverged、push 失败或 OID 不一致均返回非零；不会把仅本地成功误报成云端成功。
 
 ### 5.1 新电脑转移（从 GitHub）
 ```powershell

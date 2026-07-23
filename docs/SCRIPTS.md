@@ -136,6 +136,8 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 ```
 计划任务「OpenClaw Memory Backup」每日 **20:20 + 22:20** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**），本地快照不入公开仓库；云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后按项目目录把 `memory\*.md` 拷回对应 `C:\Users\<USER>\.claude\projects\<project>\memory\`。
 
+云端同步采用严格验收：先刷新 upstream，远端领先或分叉时拒绝自动覆盖；只有暂存区确有变化才提交；本地已有未推送提交时即使工作区干净也会补推；最后以 `ls-remote` 回读确认远端分支 OID 与本地 `HEAD` 完全一致。fetch、commit、push 或回读任一步失败都会让脚本返回非零，供计划任务重试和告警。
+
 ### `setup-codeg-bridge.ps1` — 一键接 codeg
 ```powershell
 .\tools\setup-codeg-bridge.ps1   # 把带网关密码的 openclaw-bridge MCP 写进 Cline 生效配置 + 探活

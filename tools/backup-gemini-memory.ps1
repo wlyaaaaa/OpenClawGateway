@@ -17,6 +17,7 @@ $root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\gemini"
 $cloudRepo = "E:\Projects\Backups\gemini-memory"   # private repo: wlyaaaaa/gemini-memory
 $keep      = 30
 $log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-gemini-memory.log"
+. (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -188,36 +189,37 @@ if ($dirs.Count -gt $keep) {
 }
 
 if (Test-Path -LiteralPath (Join-Path $cloudRepo '.git')) {
-    $eapSave = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
     try {
+        $branch = Get-GitCurrentBranch -Repository $cloudRepo
+        if ($branch -ne 'main') {
+            throw "Unexpected cloud backup branch '$branch'; expected 'main'."
+        }
+        # Do not overwrite a remote-newer or diverged backup checkout.
+        Get-GitRemoteState -Repository $cloudRepo -Remote 'origin' -Branch $branch | Out-Null
+
         Clear-CloudRepo $cloudRepo
         Copy-SelectedFiles $files $cloudRepo
         Write-Readme $cloudRepo
         Write-Manifest $files (Join-Path $cloudRepo 'MANIFEST.json')
 
-        $branch = (& git -C $cloudRepo branch --show-current 2>$null).Trim()
-        if (-not $branch) {
-            & git -C $cloudRepo checkout -B main 2>$null | Out-Null
+        Invoke-GitCapture -Repository $cloudRepo -Arguments @('add', '-A') | Out-Null
+        if (Test-GitStagedChanges -Repository $cloudRepo) {
+            Invoke-GitCapture -Repository $cloudRepo -Arguments @(
+                'commit', '-m', ("gemini memory snapshot {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm'))
+            ) | Out-Null
         }
 
-        $changed = (& git -C $cloudRepo status --porcelain 2>$null) -join ''
-        if ($changed) {
-            & git -C $cloudRepo add -A 2>$null | Out-Null
-            & git -C $cloudRepo commit -m ("gemini memory snapshot {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm')) 2>$null | Out-Null
-            & git -C $cloudRepo push -u origin main 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { Log "[OK] cloud backup pushed (private: wlyaaaaa/gemini-memory)" }
-            else { Log "[WARN] cloud backup push exit code $LASTEXITCODE (local snapshot succeeded)" }
-        } else {
-            Log "[..] cloud backup unchanged; skipped push"
-        }
+        # Always verify the remote, including when the generated snapshot is unchanged.
+        $sync = Invoke-VerifiedGitRemoteSync -Repository $cloudRepo -Remote 'origin' -Branch $branch
+        $verb = if ($sync.Pushed) { 'pushed' } else { 'already current' }
+        Log "[OK] cloud backup $verb; fresh remote OID verified (private: wlyaaaaa/gemini-memory)"
     } catch {
-        Log "[WARN] cloud backup failed (local snapshot succeeded): $_"
-    } finally {
-        $ErrorActionPreference = $eapSave
+        Log "[ERROR] cloud backup failed (local snapshot succeeded, task will fail): $_"
+        throw
     }
 } else {
-    Log "[..] cloud backup repo not initialized ($cloudRepo); skipped"
+    Log "[ERROR] cloud backup repo not initialized ($cloudRepo)"
+    throw "Cloud backup repo not initialized: $cloudRepo"
 }
 
 Log "=== done ==="

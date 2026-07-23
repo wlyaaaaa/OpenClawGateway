@@ -13,6 +13,7 @@ $root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\claude"
 $cloudRepo = "E:\Projects\Backups\claude-memory"   # 私有云备份仓库 wlyaaaaa/claude-memory
 $keep      = 30
 $log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-memory.log"
+. (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -57,12 +58,17 @@ if ($dirs.Count -gt $keep) {
     }
 }
 
-# 云备份：镜像记忆 .md 到私有仓库并推送（非致命；本地快照已成功）
-# 注意：git 的 LF/CRLF 警告走 stderr，必须用 2>$null + 放宽 EAP，否则会被 Stop 当错误中断。
+# 云备份：镜像记忆 .md 到私有仓库并推送。云端失败会让计划任务返回非零，
+# 便于任务调度器执行重试；已经完成的本地时间戳快照仍然保留。
 if (Test-Path (Join-Path $cloudRepo '.git')) {
-    $eapSave = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
     try {
+        $branch = Get-GitCurrentBranch -Repository $cloudRepo
+        if ($branch -ne 'main') {
+            throw "Unexpected cloud backup branch '$branch'; expected 'main'."
+        }
+        # Do not create a local commit on top of remote-newer/diverged history.
+        Get-GitRemoteState -Repository $cloudRepo -Remote 'origin' -Branch $branch | Out-Null
+
         # 迁移到 project/memory/*.md 结构，避免多个 MEMORY.md 互相覆盖；README 保留在根目录。
         Get-ChildItem -LiteralPath $cloudRepo -File -Filter '*.md' |
             Where-Object { $_.Name -ne 'README.md' } |
@@ -72,24 +78,29 @@ if (Test-Path (Join-Path $cloudRepo '.git')) {
             $projectCloudDir = Join-Path $cloudRepo (Join-Path $entry.ProjectName 'memory')
             New-Item -ItemType Directory -Path $projectCloudDir -Force | Out-Null
             robocopy $entry.MemoryPath $projectCloudDir *.md /MIR /NJH /NJS /NFL /NDL 2>$null | Out-Null
+            if ($LASTEXITCODE -ge 8) {
+                throw "robocopy failed for $($entry.ProjectName) with exit code $LASTEXITCODE"
+            }
         }
-        $changed = (& git -C $cloudRepo status --porcelain 2>$null) -join ''
-        if ($changed) {
-            & git -C $cloudRepo add -A 2>$null | Out-Null
-            & git -C $cloudRepo commit -m ("memory snapshot {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm')) 2>$null | Out-Null
-            & git -C $cloudRepo push origin main 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { Log "[OK] 云备份已推送 (private: wlyaaaaa/claude-memory)" }
-            else { Log "[WARN] 云备份 push 退出码 $LASTEXITCODE（本地快照已成功）" }
-        } else {
-            Log "[..] 云备份无变化，跳过推送"
+
+        Invoke-GitCapture -Repository $cloudRepo -Arguments @('add', '-A') | Out-Null
+        if (Test-GitStagedChanges -Repository $cloudRepo) {
+            Invoke-GitCapture -Repository $cloudRepo -Arguments @(
+                'commit', '-m', ("memory snapshot {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm'))
+            ) | Out-Null
         }
+
+        # 即使本轮内容无变化，也检查并补推历史上遗留的 ahead commit。
+        $sync = Invoke-VerifiedGitRemoteSync -Repository $cloudRepo -Remote 'origin' -Branch $branch
+        $verb = if ($sync.Pushed) { '已推送' } else { '已是最新' }
+        Log "[OK] 云备份$verb，远端 OID 回读一致 (private: wlyaaaaa/claude-memory)"
     } catch {
-        Log "[WARN] 云备份失败（本地快照已成功）: $_"
-    } finally {
-        $ErrorActionPreference = $eapSave
+        Log "[ERROR] 云备份失败（本地快照已成功，任务返回失败以触发重试）: $_"
+        throw
     }
 } else {
-    Log "[..] 云备份仓库未初始化（$cloudRepo），跳过"
+    Log "[ERROR] 云备份仓库未初始化（$cloudRepo）"
+    throw "Cloud backup repo not initialized: $cloudRepo"
 }
 
 Log "=== done (本地 $($dirs.Count) 份) ==="
