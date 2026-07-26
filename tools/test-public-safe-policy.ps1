@@ -76,6 +76,17 @@ foreach ($needle in @(', 0, True)', 'WScript.Quit firstExitCode', 'WScript.Quit 
     }
 }
 
+foreach ($case in @(
+    @{ Path='tools\backup-memory.ps1'; Root='G:\80_Backup\ControlPlane\AIMemory\Claude' },
+    @{ Path='tools\backup-gemini-memory.ps1'; Root='G:\80_Backup\ControlPlane\AIMemory\Gemini' },
+    @{ Path='tools\backup-openclaw.ps1'; Root='G:\80_Backup\ControlPlane\AIMemory\OpenClaw' }
+)) {
+    $backupText = Read-Text $case.Path
+    if ($backupText -notlike "*$($case.Root)*" -or $backupText -notmatch 'Publish-GHotSnapshot') {
+        Add-Violation "$($case.Path) must publish a verified G hot snapshot before private cloud sync"
+    }
+}
+
 if ($violations.Count -gt 0) {
     throw "Public-safe policy violations:`n$($violations -join "`n")"
 }

@@ -129,14 +129,15 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 .\tools\status.ps1     # 版本/网关/任务/模型/思考/API模式/渠道/Funnel 一屏看全
 ```
 
-### `backup-memory.ps1` — 备份 Claude 记忆（本地 + 私有云）
+### `backup-memory.ps1` — 备份 Claude 记忆（本地 + G + 私有云）
 ```powershell
 .\tools\backup-memory.ps1     # ①本地轮换快照 C:\Users\<USER>\.openclaw\memory-backup\claude\<时间戳>\（留30份）
-                              # ②镜像并推送到私有云仓库 wlyaaaaa/claude-memory（E:\Projects\Backups\claude-memory）
+                              # ②G:\80_Backup\ControlPlane\AIMemory\Claude\<时间戳>\（SHA-256回读）
+                              # ③镜像并推送到私有云仓库 wlyaaaaa/claude-memory（E:\Projects\Backups\claude-memory）
 ```
-计划任务「OpenClaw Memory Backup」每日 **20:20 + 22:20** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**），本地快照不入公开仓库；云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后按项目目录把 `memory\*.md` 拷回对应 `C:\Users\<USER>\.claude\projects\<project>\memory\`。
+计划任务「OpenClaw Memory Backup」每日 **20:20 + 22:20** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**）；G 热备随 ControlPlane 白名单进入人工 H 冷备，云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后按项目目录把 `memory\*.md` 拷回对应 `C:\Users\<USER>\.claude\projects\<project>\memory\`。
 
-云端同步采用严格验收：先刷新 upstream，远端领先或分叉时拒绝自动覆盖；只有暂存区确有变化才提交；本地已有未推送提交时即使工作区干净也会补推；最后以 `ls-remote` 回读确认远端分支 OID 与本地 `HEAD` 完全一致。fetch、commit、push 或回读任一步失败都会让脚本返回非零，供计划任务重试和告警。
+云端同步采用严格验收：先刷新 upstream，远端领先或分叉时拒绝自动覆盖；只有暂存区确有变化才提交；本地已有未推送提交时即使工作区干净也会补推；最后以 `ls-remote` 回读确认远端分支 OID 与本地 `HEAD` 完全一致。Git 直连失败时会读取当下 Windows 系统代理作一次临时重试，不写死代理端口。fetch、commit、push 或回读任一步失败都会让脚本返回非零，供计划任务重试和告警。
 
 ### `setup-codeg-bridge.ps1` — 一键接 codeg
 ```powershell

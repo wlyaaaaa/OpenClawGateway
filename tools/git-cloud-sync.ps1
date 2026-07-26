@@ -1,5 +1,78 @@
 $ErrorActionPreference = 'Stop'
 
+function ConvertTo-GitProxyUri {
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()]
+        [string]$ProxyServer
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ProxyServer)) {
+        return $null
+    }
+
+    $proxyValue = $ProxyServer.Trim()
+    $selectedKind = 'http'
+    if ($proxyValue.Contains(';') -or $proxyValue -match '^[a-zA-Z0-9]+=.+' ) {
+        $proxyMap = @{}
+        foreach ($entry in @($proxyValue -split ';')) {
+            if ($entry -match '^\s*([^=]+)=(.+?)\s*$') {
+                $proxyMap[$matches[1].Trim().ToLowerInvariant()] = $matches[2].Trim()
+            }
+        }
+        if ($proxyMap.ContainsKey('https')) {
+            $selectedKind = 'https'
+            $proxyValue = $proxyMap['https']
+        } elseif ($proxyMap.ContainsKey('http')) {
+            $selectedKind = 'http'
+            $proxyValue = $proxyMap['http']
+        } elseif ($proxyMap.ContainsKey('socks')) {
+            $selectedKind = 'socks'
+            $proxyValue = $proxyMap['socks']
+        } else {
+            return $null
+        }
+    }
+
+    if ($proxyValue -match '^[a-zA-Z][a-zA-Z0-9+.-]*://') {
+        return $proxyValue
+    }
+    if ($selectedKind -eq 'socks') {
+        return "socks5://$proxyValue"
+    }
+    return "http://$proxyValue"
+}
+
+function Get-CurrentSystemGitProxyUri {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $settings = Get-ItemProperty -LiteralPath (
+            'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+        ) -ErrorAction Stop
+        if ([int]$settings.ProxyEnable -ne 1) {
+            return $null
+        }
+        return ConvertTo-GitProxyUri -ProxyServer ([string]$settings.ProxyServer)
+    } catch {
+        return $null
+    }
+}
+
+function Test-GitNetworkFailureText {
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()]
+        [string]$Text
+    )
+
+    return ($Text -match (
+        'unable to access|failed to connect|could not connect|could not resolve host|' +
+        'connection (?:timed out|was reset|refused)|network is unreachable'
+    ))
+}
+
 function Invoke-GitCapture {
     [CmdletBinding()]
     param(
@@ -21,6 +94,7 @@ function Invoke-GitCapture {
     $savedGitPrompt = $env:GIT_TERMINAL_PROMPT
     $hadGcmInteractive = Test-Path Env:GCM_INTERACTIVE
     $savedGcmInteractive = $env:GCM_INTERACTIVE
+    $usedSystemProxy = $false
 
     try {
         $ErrorActionPreference = 'Continue'
@@ -33,6 +107,18 @@ function Invoke-GitCapture {
         $env:GCM_INTERACTIVE = 'Never'
         $output = @(& git -C $Repository @Arguments 2>&1)
         $exitCode = $LASTEXITCODE
+        $directText = (($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+        if ($AllowedExitCodes -notcontains $exitCode -and (Test-GitNetworkFailureText -Text $directText)) {
+            # Git for Windows does not automatically consume the current WinINet
+            # proxy. Retry with the live user setting without persisting a port in
+            # Git config; this follows proxy changes made by the network client.
+            $systemProxy = Get-CurrentSystemGitProxyUri
+            if ($systemProxy) {
+                $output = @(& git -c "http.proxy=$systemProxy" -C $Repository @Arguments 2>&1)
+                $exitCode = $LASTEXITCODE
+                $usedSystemProxy = $true
+            }
+        }
     } finally {
         if ($hasNativePreference) {
             $PSNativeCommandUseErrorActionPreference = $savedNativePreference
@@ -63,6 +149,7 @@ function Invoke-GitCapture {
         ExitCode = $exitCode
         Lines    = $output
         Text     = $text
+        UsedSystemProxy = $usedSystemProxy
     }
 }
 

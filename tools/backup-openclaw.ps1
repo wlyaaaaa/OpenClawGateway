@@ -11,9 +11,13 @@ $ErrorActionPreference = 'Stop'
 
 $srcCfg = Join-Path $env:USERPROFILE ".openclaw"
 $srcWs  = Join-Path $srcCfg "workspace"
+$root   = Join-Path $srcCfg "memory-backup\openclaw"
+$hotRoot = "G:\80_Backup\ControlPlane\AIMemory\OpenClaw"
 $repo   = "E:\Projects\Backups\openclaw-backup"
+$keep   = 30
 $log    = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-openclaw.log"
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
+. (Join-Path $PSScriptRoot 'g-hot-snapshot.ps1')
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -28,6 +32,38 @@ if (-not (Test-Path (Join-Path $repo '.git'))) { Log "[ERROR] 备份仓库未初
 if (-not (Test-Path -LiteralPath $srcCfg -PathType Container)) { Log "[ERROR] 配置目录不存在: $srcCfg"; exit 1 }
 if (-not (Test-Path -LiteralPath $srcWs -PathType Container)) { Log "[ERROR] 工作区目录不存在: $srcWs"; exit 1 }
 
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$dst = Join-Path $root $stamp
+$configSnapshot = Join-Path $dst 'config'
+$workspaceSnapshot = Join-Path $dst 'workspace'
+$null = New-Item -ItemType Directory -Path $configSnapshot -Force
+foreach ($f in 'openclaw.json','auth-profiles.json','config.yml','.env') {
+    $sourceFile = Join-Path $srcCfg $f
+    if (Test-Path -LiteralPath $sourceFile -PathType Leaf) {
+        Copy-Item -LiteralPath $sourceFile -Destination (Join-Path $configSnapshot $f) -Force
+    }
+}
+& robocopy $srcWs $workspaceSnapshot /MIR /XD node_modules .git .openclaw-repair .clawhub /XF package-lock.json /NFL /NDL /NJH /NJS /NP 2>$null | Out-Null
+if ($LASTEXITCODE -ge 8) {
+    throw "local workspace snapshot failed with robocopy exit code $LASTEXITCODE"
+}
+$localFiles = @(Get-ChildItem -LiteralPath $dst -Recurse -File -Force)
+if ($localFiles.Count -eq 0) {
+    throw 'OpenClaw local snapshot selected no files.'
+}
+Log "[OK] 本地快照 $($localFiles.Count) 个文件 / $(($localFiles | Measure-Object Length -Sum).Sum) bytes -> $dst"
+
+$dirs = @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+if ($dirs.Count -gt $keep) {
+    foreach ($old in @($dirs | Select-Object -Skip $keep)) {
+        Remove-Item -LiteralPath $old.FullName -Recurse -Force
+        Log "[..] 清理旧本地快照 $($old.Name)"
+    }
+}
+
+$hotResult = Publish-GHotSnapshot -SnapshotPath $dst -HotRoot $hotRoot -SnapshotName $stamp -Keep $keep
+Log "[OK] G 热备 $($hotResult.file_count) 个文件 / $($hotResult.total_size_bytes) bytes -> $($hotResult.destination)（SHA-256 回读通过）"
+
 try {
     $branch = Get-GitCurrentBranch -Repository $repo
     if ($branch -ne 'main') {
@@ -36,11 +72,11 @@ try {
     # 在覆盖专用备份工作树前先确认远端没有更新或分叉。
     Get-GitRemoteState -Repository $repo -Remote 'origin' -Branch $branch | Out-Null
 
-    # 1) config（含密钥）。源文件被删除时同步删除旧备份，避免恢复陈旧配置。
+    # 1) config（含密钥）。以已经完成本地/G回读的同一快照更新私有云。
     $configDst = Join-Path $repo 'config'
     New-Item -ItemType Directory -Path $configDst -Force | Out-Null
     foreach ($f in 'openclaw.json','auth-profiles.json','config.yml','.env') {
-        $sourceFile = Join-Path $srcCfg $f
+        $sourceFile = Join-Path $configSnapshot $f
         $destinationFile = Join-Path $configDst $f
         if (Test-Path -LiteralPath $sourceFile -PathType Leaf) {
             Copy-Item -LiteralPath $sourceFile -Destination $destinationFile -Force
@@ -49,8 +85,8 @@ try {
         }
     }
 
-    # 2) workspace（排除 node_modules / 缓存 / .git）
-    robocopy $srcWs (Join-Path $repo 'workspace') /MIR /XD node_modules .git .openclaw-repair .clawhub /XF package-lock.json /NFL /NDL /NJH /NJS /NP 2>$null | Out-Null
+    # 2) workspace 已在本地/G快照阶段完成排除和回读；这里精确镜像同一快照。
+    robocopy $workspaceSnapshot (Join-Path $repo 'workspace') /MIR /NFL /NDL /NJH /NJS /NP 2>$null | Out-Null
     if ($LASTEXITCODE -ge 8) {
         throw "workspace robocopy failed with exit code $LASTEXITCODE"
     }

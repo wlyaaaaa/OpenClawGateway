@@ -14,10 +14,12 @@ $ErrorActionPreference = 'Stop'
 
 $src       = Join-Path $env:USERPROFILE ".gemini"
 $root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\gemini"
+$hotRoot   = "G:\80_Backup\ControlPlane\AIMemory\Gemini"
 $cloudRepo = "E:\Projects\Backups\gemini-memory"   # private repo: wlyaaaaa/gemini-memory
 $keep      = 30
 $log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-gemini-memory.log"
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
+. (Join-Path $PSScriptRoot 'g-hot-snapshot.ps1')
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -187,6 +189,9 @@ if ($dirs.Count -gt $keep) {
         Log "[..] removed old backup $($_.Name)"
     }
 }
+
+$hotResult = Publish-GHotSnapshot -SnapshotPath $dst -HotRoot $hotRoot -SnapshotName $stamp -Keep $keep
+Log "[OK] G hot snapshot $($hotResult.file_count) files / $($hotResult.total_size_bytes) bytes -> $($hotResult.destination) (SHA-256 readback verified)"
 
 if (Test-Path -LiteralPath (Join-Path $cloudRepo '.git')) {
     try {

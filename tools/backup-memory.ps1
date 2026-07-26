@@ -10,10 +10,12 @@ $ErrorActionPreference = 'Stop'
 
 $src       = Join-Path $env:USERPROFILE ".claude\projects"
 $root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\claude"
+$hotRoot   = "G:\80_Backup\ControlPlane\AIMemory\Claude"
 $cloudRepo = "E:\Projects\Backups\claude-memory"   # 私有云备份仓库 wlyaaaaa/claude-memory
 $keep      = 30
 $log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-memory.log"
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
+. (Join-Path $PSScriptRoot 'g-hot-snapshot.ps1')
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -58,8 +60,11 @@ if ($dirs.Count -gt $keep) {
     }
 }
 
+$hotResult = Publish-GHotSnapshot -SnapshotPath $dst -HotRoot $hotRoot -SnapshotName $stamp -Keep $keep
+Log "[OK] G 热备 $($hotResult.file_count) 个文件 / $($hotResult.total_size_bytes) bytes -> $($hotResult.destination)（SHA-256 回读通过）"
+
 # 云备份：镜像记忆 .md 到私有仓库并推送。云端失败会让计划任务返回非零，
-# 便于任务调度器执行重试；已经完成的本地时间戳快照仍然保留。
+# 便于任务调度器执行重试；已经完成的本地与 G 时间戳快照仍然保留。
 if (Test-Path (Join-Path $cloudRepo '.git')) {
     try {
         $branch = Get-GitCurrentBranch -Repository $cloudRepo

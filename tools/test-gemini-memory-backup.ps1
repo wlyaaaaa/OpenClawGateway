@@ -6,6 +6,11 @@ $script = Join-Path $PSScriptRoot 'backup-gemini-memory.ps1'
 if (-not (Test-Path -LiteralPath $script)) {
     throw "Missing backup script: $script"
 }
+$scriptText = Get-Content -LiteralPath $script -Raw -Encoding utf8
+if ($scriptText -notmatch "G:\\80_Backup\\ControlPlane\\AIMemory\\Gemini" -or
+    $scriptText -notmatch 'Publish-GHotSnapshot') {
+    throw 'Gemini memory backup must publish a verified G hot snapshot before cloud sync.'
+}
 
 $manifest = Join-Path $env:TEMP ("gemini-memory-backup-manifest-{0}.json" -f $PID)
 if (Test-Path -LiteralPath $manifest) {

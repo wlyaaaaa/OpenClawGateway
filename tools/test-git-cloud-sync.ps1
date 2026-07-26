@@ -72,6 +72,23 @@ function Assert-ThrowsLike([scriptblock]$action, [string]$pattern, [string]$mess
 }
 
 try {
+    if ((ConvertTo-GitProxyUri -ProxyServer '127.0.0.1:7892') -ne 'http://127.0.0.1:7892') {
+        throw 'Bare WinINet proxy was not converted for Git.'
+    }
+    if ((ConvertTo-GitProxyUri -ProxyServer 'http=127.0.0.1:7891;https=127.0.0.1:7892') -ne
+        'http://127.0.0.1:7892') {
+        throw 'HTTPS WinINet proxy was not preferred for Git.'
+    }
+    if ((ConvertTo-GitProxyUri -ProxyServer 'socks=127.0.0.1:1080') -ne 'socks5://127.0.0.1:1080') {
+        throw 'SOCKS WinINet proxy was not converted for Git.'
+    }
+    if (-not (Test-GitNetworkFailureText -Text 'fatal: Failed to connect to github.com:443')) {
+        throw 'Git network failures were not recognized for dynamic proxy retry.'
+    }
+    if (Test-GitNetworkFailureText -Text 'remote: Invalid username or password') {
+        throw 'Authentication failures must not be retried as proxy failures.'
+    }
+
     $cleanAhead = New-BareTopology 'clean-ahead'
     $clean = Invoke-VerifiedGitRemoteSync -Repository $cleanAhead.Local -Remote origin -Branch main
     if (-not $clean.Verified -or $clean.Pushed) {
