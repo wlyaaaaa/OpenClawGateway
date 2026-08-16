@@ -60,6 +60,62 @@ Log "═════════════════════════
 Log "  OpenClaw Silent Boot Guardian — Self-Heal Run"
 Log "═══════════════════════════════════════════════════════════"
 
+# ── Preferred owner: PCConfig managed secret launcher ───────────────────
+$pcconfigRoot = [Environment]::GetEnvironmentVariable(
+    'PCCONFIG_ROOT',
+    'User'
+)
+if ([string]::IsNullOrWhiteSpace($pcconfigRoot)) {
+    $pcconfigRoot = 'E:\PCConfig'
+}
+$pcconfigInstaller = Join-Path $pcconfigRoot 'tools\Install-SecretBroker.ps1'
+$pcconfigRegistry = Join-Path $pcconfigRoot 'registries\secret_broker.json'
+$managedLauncher = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawGateway.ps1'
+$pwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
+if ((Test-Path -LiteralPath $managedLauncher -PathType Leaf) -and
+    (Test-Path -LiteralPath $pcconfigInstaller -PathType Leaf) -and
+    (Test-Path -LiteralPath $pcconfigRegistry -PathType Leaf) -and
+    (Test-Path -LiteralPath $pwsh -PathType Leaf)) {
+    Log "[INFO] 检测到 PCConfig 受控启动器；凭据与任务由 PCConfig 管理。"
+    Log "[INFO] 本脚本不会读取、提升或重新写入网关密码环境变量。"
+    $managedRaw = & $pwsh `
+        -NoLogo `
+        -NoProfile `
+        -NonInteractive `
+        -ExecutionPolicy Bypass `
+        -File $pcconfigInstaller `
+        -RegistryPath $pcconfigRegistry `
+        -SkipShortcut `
+        -ConfigureOpenClawGatewayTask `
+        -ScrubOpenClawGatewayEnvironment `
+        -Json
+    if ($LASTEXITCODE -ne 0) {
+        throw 'PCConfig managed gateway registration failed.'
+    }
+    $managed = $managedRaw | ConvertFrom-Json -Depth 10
+    if ($managed.status -ne 'pass' -or
+        $managed.openclaw_gateway_task_configured -ne $true -or
+        $managed.openclaw_gateway_environment_scrubbed -ne $true) {
+        throw 'PCConfig managed gateway verification failed.'
+    }
+    $managedTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+    $managedAction = @($managedTask.Actions) | Select-Object -First 1
+    $managedTriggerClasses = @(
+        $managedTask.Triggers | ForEach-Object { $_.CimClass.CimClassName }
+    )
+    if ($managedTask.Settings.Hidden -ne $true -or
+        $managedTask.Principal.RunLevel -ne 'Highest' -or
+        $managedTask.Principal.LogonType -ne 'S4U' -or
+        $managedTriggerClasses -notcontains 'MSFT_TaskBootTrigger' -or
+        $managedAction.Execute -ine $pwsh -or
+        $managedAction.Arguments -notmatch [Regex]::Escape($managedLauncher)) {
+        throw 'PCConfig managed gateway hidden-task verification failed.'
+    }
+    Log "[OK] PCConfig 受控启动任务已注册（Boot/S4U/Highest/Hidden），持久化网关密码环境变量已清理。"
+    Log "Script completed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+    exit 0
+}
+
 # ── Step 1: Validate gateway.cmd exists ──────────────────────────────────
 if (-not (Test-Path $GatewayCmdPath)) {
     Log "[ERROR] Gateway CMD not found at: $GatewayCmdPath"

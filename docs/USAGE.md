@@ -70,6 +70,6 @@ OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
 
 ## 9. 在 codeg 控制台里用 OpenClaw（详见 [CODEG.md](CODEG.md)）
 - ❌ **别用** codeg 的「OpenClaw」ACP agent —— per-session MCP + auth 握手是 codeg 的 bug，走不通。
-- ✅ 用 **Cline** agent + 挂 `openclaw-bridge` MCP（**必须带网关密码** `OPENCLAW_GATEWAY_PASSWORD`）。
+- ✅ 用 **Cline** agent + 挂 `openclaw-bridge` MCP；本机优先走 PCConfig 受控启动器，Cline 配置不保存网关密码。
 - 一键配置：`powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1` → codeg「MCP」页点刷新 → 把 openclaw-bridge 勾给 Cline → 用 Cline 发任务。
 - 配好后 Cline 可调 OpenClaw 的 9 个对话工具（列对话 / 读发消息 / 轮询事件 / 处理审批）。

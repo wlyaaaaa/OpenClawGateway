@@ -9,7 +9,7 @@
 ## 0. 一句话结论
 
 > **codeg 里别用「OpenClaw」这个 ACP agent（走不通，是 codeg 侧 bug）。
-> 改用「Cline」当 agent + 给它挂 `openclaw-bridge` MCP（带网关密码）来调用 OpenClaw。**
+> 改用「Cline」当 agent + 给它挂 `openclaw-bridge` MCP；本机优先由 PCConfig 受控启动器在子进程内注入网关凭据。**
 
 一键配置：
 ```powershell
@@ -41,32 +41,39 @@ codeg 的「智能体 / Agent SDK 管理」把 OpenClaw、Cline、Claude Code �
 
 ---
 
-## 2. 可行路径：openclaw-bridge MCP（带网关密码）
+## 2. 可行路径：openclaw-bridge MCP（受控凭据注入）
 
-### 2.1 关键：必须带网关密码
+### 2.1 关键：运行进程必须获得网关密码，但配置文件不应保存明文
 
 OpenClaw 网关 `gateway.auth.mode = "password"`。`openclaw mcp serve` 连网关时若不带密码，
 Cline 一调用工具就报：
 `Authentication required: Call authenticate before creating a session`（与 ACP 报错 B 同文案，但这次是 MCP 侧）。
 
-补上密码即解决。密码来源 = 机器级环境变量 `OPENCLAW_GATEWAY_PASSWORD`。
+本机已接入 PCConfig 时，由只读启动器在 `openclaw mcp serve` 子进程内临时注入密码；Cline 配置只保存启动器路径和本地 URL。未接入 PCConfig 的旧环境仍可暂时使用机器级环境变量兼容模式，但不应把密码长期写进 Cline JSON。
 
 ### 2.2 MCP 配置（codeg「MCP」页 → openclaw-bridge → 配置 JSON）
 
 ```json
 {
   "type": "stdio",
-  "command": "C:\\Users\\10979\\AppData\\Roaming\\npm\\openclaw.cmd",
-  "args": ["mcp", "serve"],
+  "command": "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+  "args": [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "C:\\ProgramData\\PCConfig\\SecretBroker\\Start-OpenClawMcpBridge.ps1"
+  ],
   "env": {
-    "OPENCLAW_URL": "http://127.0.0.1:18789",
-    "OPENCLAW_GATEWAY_PASSWORD": "<网关密码>"
+    "OPENCLAW_URL": "http://127.0.0.1:18789"
   }
 }
 ```
 
 > codeg 会检测 Cline 的生效配置 `C:\Users\<USER>\.cline\data\settings\cline_mcp_settings.json`；
-> `setup-codeg-bridge.ps1` 会把上面的配置（密码自动从环境变量取）写进该文件，省去手填。
+> `setup-codeg-bridge.ps1` 优先写入上述无明文配置；只有受控启动器不存在时才进入旧式环境变量兼容模式。
 
 ### 2.3 实测：带密码即认证成功，暴露 9 个工具
 
@@ -121,7 +128,7 @@ Cline 一调用工具就报：
 
 | 现象 | 原因 | 处理 |
 |------|------|------|
-| `Authentication required: Call authenticate before creating a session`（Cline 下） | openclaw-bridge 没带网关密码 | 在 MCP env 加 `OPENCLAW_GATEWAY_PASSWORD`（或跑 setup 脚本） |
+| `Authentication required: Call authenticate before creating a session`（Cline 下） | 受控启动器未就绪或旧式环境缺少凭据 | 完成 PCConfig Secret Broker 初始化，再跑 setup 脚本；不要把密码手工写回 MCP JSON |
 | `ACP bridge mode does not support per-session MCP servers`（OpenClaw 下） | 用了 OpenClaw ACP agent，codeg 必发 per-session MCP | **改用 Cline**，放弃 OpenClaw agent |
 | Cline 报模型不存在 / 4xx | Model 填成 `claude-sonnet-4-5` 但端点是 Qwen | Model 改 `qwen3.7-plus` |
 | MCP「未检测到本地 MCP」 | Cline 生效配置为空 | 跑 setup 脚本写回，再点「刷新」 |
@@ -132,8 +139,8 @@ Cline 一调用工具就报：
 ## 6. 一键脚本说明
 
 `tools/setup-codeg-bridge.ps1`：
-1. 从机器级环境变量读 `OPENCLAW_GATEWAY_PASSWORD`；
-2. 把带密码的 `openclaw-bridge` 写进 Cline 生效配置（codeg 检测此文件）；
+1. 优先检测 PCConfig 受控启动器；缺失时才检查旧式机器级环境变量；
+2. 把不含密码的 `openclaw-bridge` 启动器配置写进 Cline 生效配置；
 3. 探活网关 18789；
 4. 打印 codeg 内收尾步骤。
 

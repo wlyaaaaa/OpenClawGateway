@@ -14,8 +14,8 @@ npm install -g openclaw
 .\tools\restore-config.ps1 -From <备份目录>
 #    b. 无备份：openclaw onboard / openclaw configure 重新引导
 
-# 3) 网关密码（Machine 级，S4U 早期可读）
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD','<password>','Machine')
+# 3) 恢复 PCConfig Secret Broker；网关密码由受控启动器注入，
+#    不再写入 User/Machine 环境变量
 
 # 4) 注册静默开机自启
 powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
@@ -96,13 +96,13 @@ Copy-Item E:\Projects\Backups\openclaw-backup\workspace\* "$env:USERPROFILE\.ope
 | context overflow 崩溃 | 聊天里 `/new` 重置会话；见 USAGE |
 | 启动慢 / registry 超时 | 确认 `checkOnStart=false`；本地代理是否就绪 |
 | 网关 OOM 崩溃 | 计划任务 direct-node 参数已设 `--max-old-space-size=1536`，可在 `openclaw_silent_boot_guardian.ps1` 中再调高 |
-| codeg 里 OpenClaw 报 `Authentication required` | openclaw-bridge MCP 没带网关密码 → 跑 `tools\setup-codeg-bridge.ps1`；见 [CODEG.md](CODEG.md) |
+| codeg 里 OpenClaw 报 `Authentication required` | PCConfig 受控启动器未就绪或旧式凭据缺失 → 完成 Secret Broker 初始化后跑 `tools\setup-codeg-bridge.ps1`；见 [CODEG.md](CODEG.md) |
 | codeg 里 OpenClaw 报 `per-session MCP servers` | 用了 OpenClaw ACP agent（codeg bug）→ 改用 Cline agent + openclaw-bridge MCP |
 
 常用诊断：`openclaw doctor`、`openclaw daemon status`、`openclaw status`、`openclaw health`。
 
 ## 8. codeg 控制台接入（详见 CODEG.md）
-codeg 的 OpenClaw ACP agent 走不通；用 **Cline + openclaw-bridge MCP（带网关密码）** 间接调用 OpenClaw。
+codeg 的 OpenClaw ACP agent 走不通；用 **Cline + openclaw-bridge MCP（PCConfig 受控注入凭据）** 间接调用 OpenClaw。
 一键：`powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1`。
 
 ## 7. 卸载

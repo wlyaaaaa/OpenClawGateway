@@ -62,7 +62,8 @@ E:\Projects\Tools\OpenClawGateway\
 
 ### `openclaw_silent_boot_guardian.ps1`
 重注册 `OpenClaw Gateway` 计划任务为 **BootTrigger+30s / S4U / Highest / Hidden**，
-实现无登录、无黑窗的开机自启。装机或自启失效时运行一次。
+实现无登录、无黑窗的开机自启。已接入 PCConfig Secret Broker 时由受控启动器接管任务动作
+和凭据注入；未迁移环境才回退到仓库内的隐藏 VBS/direct-node 路径。装机或自启失效时运行一次。
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
 ```
@@ -141,7 +142,7 @@ powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
 
 ### `setup-codeg-bridge.ps1` — 一键接 codeg
 ```powershell
-.\tools\setup-codeg-bridge.ps1   # 把带网关密码的 openclaw-bridge MCP 写进 Cline 生效配置 + 探活
+.\tools\setup-codeg-bridge.ps1   # 优先写入 PCConfig 受控启动器配置（无明文网关密码）+ 探活
 ```
 用于 codeg 控制台经 Cline 调用 OpenClaw（ACP 直连走不通）。详见 [CODEG.md](CODEG.md)。
 

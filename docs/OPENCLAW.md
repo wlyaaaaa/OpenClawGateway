@@ -58,19 +58,21 @@ openclaw daemon uninstall
 `openclaw update` 升级后会自动经此机制重启网关。
 
 ### 2.2 自定义静默守护（本仓库 `openclaw_silent_boot_guardian.ps1`）
-在原生任务基础上，把 `OpenClaw Gateway` 任务重注册为**完全静默、开机即起**：
+在原生任务基础上，把 `OpenClaw Gateway` 任务收敛为**完全静默、开机即起**。本机已接入
+PCConfig Secret Broker 时，guardian 将任务动作和凭据交给受控启动器；未接入时才使用
+仓库内的兼容回退路径：
 
 | 维度 | 设置 | 作用 |
 |------|------|------|
 | 触发器 | `BootTrigger +30s` | 系统引导即启动，**不依赖用户登录** |
 | 身份 | `S4U` LogonType | 免密、无交互桌面、后台运行 |
 | 权限 | `Highest` | 端口绑定 / Tailscale 等特权操作 |
-| 窗口 | `wscript.exe → openclaw_run_hidden.vbs`（windowStyle=0） | 零黑窗闪烁 |
+| 窗口 | PCConfig 受控启动器（任务 `Hidden`）；兼容回退为 `wscript.exe → openclaw_run_hidden.vbs`（windowStyle=0） | 零黑窗闪烁 |
 | 容错 | `RestartOnFailure 3×60s` + `StartWhenAvailable` | 失败自动重启、错过补跑 |
 
-> ⚠️ 两条路线都管理**同名任务** `OpenClaw Gateway`。若以后运行 `openclaw daemon install`
-> 或 `doctor --fix`，可能覆盖自定义注册。长期建议统一到 direct-node 计划任务方式，
-> 自定义脚本仅作灾备。
+> ⚠️ PCConfig 受控路径与兼容回退都管理**同名任务** `OpenClaw Gateway`。若以后运行
+> `openclaw daemon install` 或 `doctor --fix`，可能覆盖受控注册；PCConfig 受控路径为首选，
+> 本地 VBS/direct-node 逻辑仅用于未迁移环境或灾备。
 
 重新注册（管理员 PowerShell）：
 ```powershell
@@ -84,7 +86,7 @@ powershell -ExecutionPolicy Bypass -File "E:\Projects\Tools\OpenClawGateway\open
 
 ## 4. 认证与免登录运行
 - `gateway.auth.mode = "password"`：静态密码保护，无需浏览器 SSO。
-- 密码以 **Machine 级环境变量** `OPENCLAW_GATEWAY_PASSWORD` 提供（S4U 早期即可读取）。
+- 本机接入 PCConfig 后，密码由受控启动器在网关子进程内临时注入；User/Machine 持久化环境变量均应为空。未接入 PCConfig 的旧环境才使用 Machine 级环境变量兼容模式。
 - `bind = "loopback"`：仅监听 127.0.0.1，公网仅经 Tailscale Funnel（TLS）暴露。
 
 ## 5. 成本控制 / 安全模式（重点）
@@ -117,8 +119,8 @@ Telegram / 飞书的 `enabled` 长期开关不由 API key 脚本改写；但**�
 winget install OpenJS.NodeJS.LTS
 npm install -g openclaw
 # 还原 $HOME\.openclaw\ 备份（含 openclaw.json、auth-profiles.json、credentials）
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD','<password>','Machine')
-openclaw daemon install            # 或运行 openclaw_silent_boot_guardian.ps1
+# 先恢复 PCConfig Secret Broker，再运行 guardian；它会委托受控启动器注册任务
+.\openclaw_silent_boot_guardian.ps1
 ```
 
 ## 9. 运维速查

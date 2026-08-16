@@ -57,16 +57,27 @@ if ($RestoreFrom) {
     Warn '完成后再继续注册任务（或用 tools\set-api.ps1 填 key）。'
 }
 
-# 3. 网关密码（Machine 级）
-Step '3/6 设置网关密码 (Machine 环境变量)'
-$existing = [System.Environment]::GetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD','Machine')
-if ($existing) { Info '已存在 Machine 级密码，跳过。' }
+# 3. 网关密码（优先由 PCConfig 受控启动器管理）
+Step '3/6 准备网关凭据'
+$managedLauncher = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawGateway.ps1'
+if (Test-Path -LiteralPath $managedLauncher -PathType Leaf) {
+    Info '检测到 PCConfig 受控启动器；跳过持久化环境变量写入。'
+}
 else {
+    $existing = [System.Environment]::GetEnvironmentVariable(
+        'OPENCLAW_GATEWAY_PASSWORD',
+        'Machine'
+    )
+    if ($existing) {
+        Info '已存在旧式 Machine 级密码，跳过。'
+    }
+    else {
     $sec = Read-Host '输入网关密码 OPENCLAW_GATEWAY_PASSWORD' -AsSecureString
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
     $pw = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
     [System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD',$pw,'Machine')
-    Info '已写入 Machine 级密码。'
+        Info '已写入旧式 Machine 级密码。'
+    }
 }
 
 # 4. gateway.cmd 堆上限（若缺失则由 daemon install 生成，再补堆参数）

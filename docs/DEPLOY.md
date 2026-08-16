@@ -28,7 +28,7 @@ cd E:\Projects\Tools\OpenClawGateway
 # 模式 B：全新、无备份（用模板，过程中交互填密钥）
 .\bootstrap\setup.ps1
 ```
-`setup.ps1` 会依次：装运行时(Node/openclaw/cline) → 还原/初始化配置 → 设网关密码 →
+`setup.ps1` 是未接入 PCConfig 时的旧式兼容安装：装运行时(Node/openclaw/cline) → 还原/初始化配置 → 设网关密码 →
 生成 gateway.cmd 作为本地配置参考 → 注册 Gateway/Heartbeat；`OpenClaw Update` 任务保留但 Disabled → 装 Cline 全局规则 → 校验。
 
 完成后：
@@ -53,8 +53,8 @@ copy bootstrap\openclaw.template.json        $env:USERPROFILE\.openclaw\openclaw
 copy bootstrap\auth-profiles.template.json   $env:USERPROFILE\.openclaw\auth-profiles.json
 #      然后把两个文件里的 <...> 占位符换成真实密钥
 
-# (3) 网关密码（Machine 级，S4U 早期可读）
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD','<密码>','Machine')
+# (3) 推荐先恢复 PCConfig Secret Broker，由受控启动器注入网关密码；
+#     不再把密码写入 User/Machine 环境变量
 
 # (4) 静默开机自启 + 心跳 + 更新任务
 .\openclaw_silent_boot_guardian.ps1
