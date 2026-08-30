@@ -21,6 +21,34 @@ function Get-GHotSnapshotInventory {
     )
 }
 
+function Remove-GHotSnapshotOverflow {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Keep
+    )
+
+    $snapshots = @(
+        Get-ChildItem -LiteralPath $Root -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^\d{8}-\d{6}$' } |
+            Sort-Object Name -Descending
+    )
+    if ($snapshots.Count -le $Keep) {
+        return
+    }
+
+    foreach ($old in @($snapshots | Select-Object -Skip $Keep)) {
+        $oldFull = [IO.Path]::GetFullPath($old.FullName)
+        if (-not $oldFull.StartsWith($Root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to rotate a G hot snapshot outside its root: $oldFull"
+        }
+        Remove-Item -LiteralPath $oldFull -Recurse -Force
+    }
+}
+
 function Publish-GHotSnapshot {
     [CmdletBinding()]
     param(
@@ -85,6 +113,7 @@ function Publish-GHotSnapshot {
                 [int64]$latestManifest.total_size_bytes -eq $sourceBytes -and
                 $manifestJson -ceq $sourceJson -and
                 $latestJson -ceq $sourceJson) {
+                Remove-GHotSnapshotOverflow -Root $root -Keep $Keep
                 return [PSCustomObject]@{
                     destination = [IO.Path]::GetFullPath($latest.FullName)
                     file_count = $sourceInventory.Count
@@ -147,20 +176,7 @@ function Publish-GHotSnapshot {
         throw
     }
 
-    $snapshots = @(
-        Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^\d{8}-\d{6}$' } |
-            Sort-Object Name -Descending
-    )
-    if ($snapshots.Count -gt $Keep) {
-        foreach ($old in @($snapshots | Select-Object -Skip $Keep)) {
-            $oldFull = [IO.Path]::GetFullPath($old.FullName)
-            if (-not $oldFull.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-                throw "Refusing to rotate a G hot snapshot outside its root: $oldFull"
-            }
-            Remove-Item -LiteralPath $oldFull -Recurse -Force
-        }
-    }
+    Remove-GHotSnapshotOverflow -Root $root -Keep $Keep
 
     return [PSCustomObject]@{
         destination = $destinationFull

@@ -49,6 +49,32 @@ try {
         '{"source":"preserve-me"}') {
         throw 'G hot snapshot receipt overwrote the source-owned manifest.'
     }
+
+    # Retention must still converge when an unchanged source takes the
+    # duplicate fast path (for example, after lowering Keep from 3 to 2).
+    $retentionSource = Join-Path $tempRoot 'retention-source'
+    $retentionHot = Join-Path $tempRoot 'retention-hot'
+    $null = New-Item -ItemType Directory -Path $retentionSource -Force
+    foreach ($case in @(
+        @{ Name = '20260726-020101'; Content = 'one' },
+        @{ Name = '20260726-020102'; Content = 'two' },
+        @{ Name = '20260726-020103'; Content = 'three' }
+    )) {
+        [IO.File]::WriteAllText(
+            (Join-Path $retentionSource 'state.txt'),
+            $case.Content,
+            [Text.UTF8Encoding]::new($false)
+        )
+        Publish-GHotSnapshot -SnapshotPath $retentionSource -HotRoot $retentionHot `
+            -SnapshotName $case.Name -Keep 3 | Out-Null
+    }
+    $retentionDuplicate = Publish-GHotSnapshot -SnapshotPath $retentionSource -HotRoot $retentionHot `
+        -SnapshotName '20260726-020104' -Keep 2
+    $retained = @(Get-ChildItem -LiteralPath $retentionHot -Directory)
+    if (-not $retentionDuplicate.skipped_identical -or $retained.Count -ne 2 -or
+        (Test-Path -LiteralPath (Join-Path $retentionHot '20260726-020101'))) {
+        throw 'Identical snapshot did not enforce the current retention limit.'
+    }
     Write-Host 'OK G hot snapshot readback and rotation'
 } finally {
     if (Test-Path -LiteralPath $tempRoot) {
