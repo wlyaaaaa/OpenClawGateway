@@ -51,9 +51,12 @@ function Test-OcGatewayHealth {
     if ($LASTEXITCODE -ne 0) { return $false }
     try {
         $payload = $raw | ConvertFrom-Json
+        $errorProperty = $payload.PSObject.Properties['error']
+        $eventLoop = $payload.PSObject.Properties['eventLoop']
         return $payload.ok -eq $true -and
-            [string]::IsNullOrWhiteSpace([string]$payload.error) -and
-            (-not $payload.eventLoop -or $payload.eventLoop.degraded -ne $true)
+            ($null -eq $errorProperty -or
+             [string]::IsNullOrWhiteSpace([string]$errorProperty.Value)) -and
+            ($null -eq $eventLoop -or $eventLoop.Value.degraded -ne $true)
     } catch { return $false }
 }
 
