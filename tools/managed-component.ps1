@@ -217,7 +217,12 @@ function Invoke-Verify {
     }
 
     $autoUpdate = Get-OCConfigValue -Key 'update.auto'
-    if ($autoUpdate -and $autoUpdate -ne 'false') {
+    $autoDisabled = $autoUpdate -eq 'false'
+    if ($autoUpdate -and -not $autoDisabled) {
+        try { $autoDisabled = ($autoUpdate | ConvertFrom-Json).enabled -eq $false }
+        catch { $autoDisabled = $false }
+    }
+    if ($autoUpdate -and -not $autoDisabled) {
         $failed += "update.auto: expected false, got $autoUpdate"
     }
 

@@ -84,6 +84,7 @@ function Get-OCConfigValue {
     switch ($Key) {
         'models.providers.openai.api' { return [string]$scenario.api_mode }
         'update.checkOnStart' { return [string]$scenario.check_on_start }
+        'update.auto' { return '{"enabled":false}' }
         'channels.telegram.allowFrom' { return [string]$scenario.telegram_allow }
         default { return $null }
     }

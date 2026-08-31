@@ -45,14 +45,25 @@ if ($copied.Count -eq 0) {
 
 # 原生归档必须由 OpenClaw 自己校验通过。
 $nativeOutput = Join-Path $dir 'openclaw-native-backup.zip'
-$nativeRaw = & openclaw backup create --output $nativeOutput --no-include-workspace --verify --json 2>$null | Out-String
-if ($LASTEXITCODE -ne 0) { throw 'OpenClaw native backup failed.' }
-try { $native = $nativeRaw | ConvertFrom-Json -Depth 20 }
-catch { throw 'OpenClaw native backup returned invalid JSON.' }
-if ($native.dryRun -eq $true -or $native.verified -ne $true -or
-    $native.includeWorkspace -ne $false -or @($native.assets).Count -eq 0 -or
-    -not (Test-Path -LiteralPath ([string]$native.archivePath) -PathType Leaf)) {
-    throw 'OpenClaw native backup verification failed.'
+$nativeTemporary = Join-Path ([IO.Path]::GetTempPath()) (
+    "openclaw-native-backup-$PID-$nonce.zip"
+)
+try {
+    $nativeRaw = & openclaw backup create --output $nativeTemporary --no-include-workspace --verify --json 2>$null | Out-String
+    if ($LASTEXITCODE -ne 0) { throw 'OpenClaw native backup failed.' }
+    try { $native = $nativeRaw | ConvertFrom-Json -Depth 20 }
+    catch { throw 'OpenClaw native backup returned invalid JSON.' }
+    if ($native.dryRun -eq $true -or $native.verified -ne $true -or
+        $native.includeWorkspace -ne $false -or @($native.assets).Count -eq 0 -or
+        -not (Test-Path -LiteralPath ([string]$native.archivePath) -PathType Leaf)) {
+        throw 'OpenClaw native backup verification failed.'
+    }
+    Move-Item -LiteralPath ([string]$native.archivePath) -Destination $nativeOutput
+}
+finally {
+    if (Test-Path -LiteralPath $nativeTemporary) {
+        Remove-Item -LiteralPath $nativeTemporary -Force
+    }
 }
 if (-not $Json) { Write-Info "原生 OpenClaw 归档已校验通过" }
 
@@ -63,7 +74,7 @@ if ($Json) {
         backup_path = (Resolve-Path -LiteralPath $dir).Path
         copied_items = @($copied)
         native_backup_verified = $true
-        native_archive_path = [string]$native.archivePath
+        native_archive_path = $nativeOutput
     } | ConvertTo-Json -Depth 5
 } else {
     Write-Host "`n✅ 备份完成 → $dir" -ForegroundColor Green
