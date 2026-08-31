@@ -16,7 +16,7 @@ param(
     [switch]$Json,
     [string]$ResultPath,
     [string]$BackupScript = (Join-Path $PSScriptRoot 'backup-config.ps1'),
-    [string]$RestartScript = (Join-Path $PSScriptRoot 'restart_gateway.ps1')
+    [string]$RestoreScript = (Join-Path $PSScriptRoot 'restore-config.ps1')
 )
 
 Set-StrictMode -Version Latest
@@ -27,9 +27,23 @@ $utf8NoBom = [Text.UTF8Encoding]::new($false)
 $OutputEncoding = $utf8NoBom
 
 . (Join-Path $PSScriptRoot '_update_lib.ps1')
+. (Join-Path $PSScriptRoot '_common.ps1')
 
 $componentId = 'openclaw'
 $observedUtc = [DateTime]::UtcNow.ToString('o')
+
+function Get-OcOfficialTargetVersion {
+    $run = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+        'update', 'status', '--json', '--timeout', '30'
+    ) -TimeoutSec 60
+    if ($run.TimedOut -or $run.ExitCode -ne 0) { return $null }
+    try {
+        $status = $run.Stdout | ConvertFrom-Json -Depth 20
+        $target = [string]$status.availability.latestVersion
+        if (-not $target) { $target = [string]$status.update.registry.latestVersion }
+        return Get-OpenClawVersionToken -Text $target
+    } catch { return $null }
+}
 
 if (($Status -and $Update) -or (-not $Status -and -not $Update)) {
     [Console]::Error.WriteLine("Usage: -Status -Json | -Update -Json [-ResultPath <path>]")
@@ -73,18 +87,15 @@ function Invoke-Status {
     $targetVersion = $null
     $targetProbeOk = $false
     try {
-        $npmCmd = Resolve-NpmCmd
-        $viewRun = Invoke-ExternalLines -FilePath $npmCmd -ArgumentList @('view', "openclaw@$tag", 'version') -TimeoutSec 60
-        $targetProbeOk = ($viewRun.ExitCode -eq 0)
-        $targetVersion = Get-OpenClawVersionToken -Text $viewRun.Stdout
+        $targetVersion = Get-OcOfficialTargetVersion
+        $targetProbeOk = -not [string]::IsNullOrWhiteSpace($targetVersion)
     } catch {
         $targetProbeOk = $false
     }
 
     $health = 'unknown'
     try {
-        $listening = Test-PortListening -Port $script:OC_PORT
-        if ($listening) { $health = 'healthy' } else { $health = 'degraded' }
+        if (Test-OcGatewayHealth) { $health = 'healthy' } else { $health = 'degraded' }
     } catch {
         $health = 'unknown'
     }
@@ -205,6 +216,11 @@ function Invoke-Verify {
         $failed += "checkOnStart: expected false, got $checkOnStart"
     }
 
+    $autoUpdate = Get-OCConfigValue -Key 'update.auto'
+    if ($autoUpdate -and $autoUpdate -ne 'false') {
+        $failed += "update.auto: expected false, got $autoUpdate"
+    }
+
     $tgAllow = Get-OCConfigValue -Key 'channels.telegram.allowFrom'
     if ($tgAllow -and $tgAllow -match '\*') {
         $failed += "telegram_allowFrom contains wildcard *"
@@ -315,23 +331,15 @@ function Invoke-Update {
     $receipt.phases.preflight = 'passed'
     $preflightFailed = @()
 
-    if (-not (Test-IsAdmin)) {
-        $receipt.phases.preflight = 'failed'
-        $receipt.overall = 'failed'
-        $receipt.failed_checks += 'preflight_not_admin: update requires admin but process is not elevated'
-        Write-JsonResult -Data $receipt -ResultPath $ResultPath
-        exit 1
-    }
-
     $taskState = Get-TaskState -TaskName $script:OC_TASK
     if (-not $taskState) {
         $preflightFailed += "task_not_found: $script:OC_TASK"
     }
 
     try {
-        $null = Resolve-NpmCmd
+        $null = Get-Command openclaw -ErrorAction Stop
     } catch {
-        $preflightFailed += "npm_not_found"
+        $preflightFailed += 'openclaw_not_found'
     }
 
     if ($preflightFailed.Count -gt 0) {
@@ -342,42 +350,59 @@ function Invoke-Update {
         exit 1
     }
 
-    # --- behind: update phase (npm install) ---
-    $tag = ConvertTo-NpmTag -Channel $channel
+    # --- behind: official update while the Gateway is stopped ---
     $installCompleted = $false
+    $preRestartPids = @(Get-PortOwningProcessIds -Port $script:OC_PORT)
     try {
-        $npmCmd = Resolve-NpmCmd
-        [Console]::Error.WriteLine("Installing openclaw@$tag ...")
-        $npmRun = Invoke-ExternalLines -FilePath $npmCmd -ArgumentList @('install', '-g', "openclaw@$tag") -TimeoutSec 300
-        [Console]::Error.WriteLine("npm exit code: $($npmRun.ExitCode)")
-        if ($npmRun.ExitCode -ne 0) {
-            $receipt.phases.update = 'failed'
-            $receipt.overall = 'failed'
-            $receipt.failed_checks += "npm_install_failed: exit $($npmRun.ExitCode)"
-            Write-JsonResult -Data $receipt -ResultPath $ResultPath
-            exit 1
+        Stop-Gateway
+        $updateRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+            'update', '--tag', $targetVersion, '--yes', '--json',
+            '--no-restart', '--timeout', '1800'
+        ) -TimeoutSec 10800
+        if ($updateRun.TimedOut -or $updateRun.ExitCode -ne 0) {
+            throw 'official update command failed'
+        }
+        try { $updateResult = $updateRun.Stdout | ConvertFrom-Json -Depth 50 }
+        catch { throw 'official update returned invalid JSON' }
+        $plugins = $updateResult.postUpdate.plugins
+        $pluginFailures = @($plugins.sync.errors).Count +
+            @($plugins.integrityDrifts).Count +
+            @($plugins.npm.outcomes | Where-Object { $_.status -eq 'error' }).Count
+        if ([string]$updateResult.status -cne 'ok' -or
+            [string]$updateResult.after.version -cne $targetVersion -or
+            [string]$plugins.status -eq 'error' -or $pluginFailures -gt 0) {
+            throw 'official update verification failed'
         }
         $installCompleted = $true
         $receipt.changed = $true
-
-        $newRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @('--version') -TimeoutSec 30
-        if ($newRun.ExitCode -ne 0 -or $newRun.TimedOut) {
-            throw "post-install version probe failed (exit=$($newRun.ExitCode), timed_out=$($newRun.TimedOut))"
-        }
-        $installedVersion = Get-OpenClawVersionToken -Text $newRun.Stdout
-        if (-not $installedVersion) {
-            throw 'post-install version probe returned no valid version token'
-        }
+        $installedVersion = $targetVersion
         $receipt.installed_version = $installedVersion
         $receipt.changed = ($installedVersion -ne $previousVersion)
         $receipt.phases.update = 'passed'
     }
     catch {
         $receipt.phases.update = 'failed'
-        $receipt.overall = if ($installCompleted) { 'partial' } else { 'failed' }
-        $receipt.failed_checks += "update_exception: $_"
+        $currentRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @('--version') -TimeoutSec 30
+        $currentVersion = Get-OpenClawVersionToken -Text $currentRun.Stdout
+        $changedOnFailure = $currentVersion -and $currentVersion -cne $previousVersion
+        try {
+            if ($changedOnFailure) {
+                $null = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+                    'update', '--tag', $previousVersion, '--yes', '--json',
+                    '--no-restart', '--timeout', '1800'
+                ) -TimeoutSec 10800
+                & pwsh -NoProfile -ExecutionPolicy Bypass -File $RestoreScript -From $backupResult.backup_path -NoRestart
+                if ($LASTEXITCODE -ne 0) { throw 'configuration restore failed' }
+            }
+            Start-Gateway
+        } catch {
+            $receipt.failed_checks += 'rollback_or_restart_failed'
+        }
+        $receipt.overall = if ($changedOnFailure) { 'partial' } else { 'failed' }
+        $receipt.changed = [bool]$changedOnFailure
+        $receipt.failed_checks += 'official_update_failed'
         Write-JsonResult -Data $receipt -ResultPath $ResultPath
-        if ($installCompleted) { exit 2 } else { exit 1 }
+        if ($changedOnFailure) { exit 2 } else { exit 1 }
     }
 
     # --- behind: self-heal critical config ---
@@ -387,23 +412,13 @@ function Invoke-Update {
         [Console]::Error.WriteLine("Self-heal: re-asserted api=openai-completions (was: $api)")
     }
 
-    # --- behind: restart gateway ---
-    $preRestartPids = @(Get-PortOwningProcessIds -Port $script:OC_PORT)
+    # --- behind: start the updated Gateway ---
     $restartFailed = $false
-    if (Get-ScheduledTask -TaskName $script:OC_TASK -ErrorAction SilentlyContinue) {
-        [Console]::Error.WriteLine("Spawning restart helper...")
-        try {
-            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $RestartScript
-            if ($LASTEXITCODE -ne 0) { throw "restart helper exit code $LASTEXITCODE" }
-            [Console]::Error.WriteLine("Restart helper spawned.")
-        } catch {
-            [Console]::Error.WriteLine("Restart helper failed: $_")
-            $restartFailed = $true
-            $receipt.failed_checks += "restart_failed: $_"
-        }
-    } else {
+    try {
+        Start-Gateway
+    } catch {
         $restartFailed = $true
-        $receipt.failed_checks += "restart_failed: gateway task not found"
+        $receipt.failed_checks += 'start_failed'
     }
 
     # --- behind: wait phase ---
@@ -468,16 +483,13 @@ function Invoke-StatusInternal {
     $targetVersion = $null
     $targetProbeOk = $false
     try {
-        $npmCmd = Resolve-NpmCmd
-        $viewRun = Invoke-ExternalLines -FilePath $npmCmd -ArgumentList @('view', "openclaw@$tag", 'version') -TimeoutSec 60
-        $targetProbeOk = ($viewRun.ExitCode -eq 0)
-        $targetVersion = Get-OpenClawVersionToken -Text $viewRun.Stdout
+        $targetVersion = Get-OcOfficialTargetVersion
+        $targetProbeOk = -not [string]::IsNullOrWhiteSpace($targetVersion)
     } catch { $targetProbeOk = $false }
 
     $health = 'unknown'
     try {
-        $listening = Test-PortListening -Port $script:OC_PORT
-        if ($listening) { $health = 'healthy' } else { $health = 'degraded' }
+        if (Test-OcGatewayHealth) { $health = 'healthy' } else { $health = 'degraded' }
     } catch { $health = 'unknown' }
 
     $relation = Get-VersionRelation `

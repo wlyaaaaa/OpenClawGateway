@@ -35,7 +35,19 @@ function Parse-VersionToken {
         return $null
     }
     $core = $Matches[1]
-    $pre = if ($Matches[2]) { $Matches[2] } else { $null }
+    $suffix = if ($Matches[2]) { $Matches[2] } else { $null }
+    $pre = $null
+    [long]$correction = 0
+    if ($suffix) {
+        [long]$numericSuffix = 0
+        if ([long]::TryParse($suffix, [ref]$numericSuffix)) {
+            if ($numericSuffix -lt 1) { return $null }
+            $correction = $numericSuffix
+        }
+        else {
+            $pre = $suffix
+        }
+    }
     $parts = $core -split '\.'
     $nums = @()
     foreach ($p in $parts) {
@@ -44,7 +56,12 @@ function Parse-VersionToken {
         $nums += $n
     }
     while ($nums.Count -lt 3) { $nums += 0 }
-    return [pscustomobject]@{ Parts = $nums; PreRelease = $pre; Raw = $v }
+    return [pscustomobject]@{
+        Parts = $nums
+        PreRelease = $pre
+        StableCorrection = $correction
+        Raw = $v
+    }
 }
 
 # --- Pure: compare two version tokens (returns -1/0/1) ---
@@ -86,6 +103,8 @@ function Compare-Versions {
         if ($cIds.Count -gt $tIds.Count) { return 1 }
         return 0
     }
+    if ($c.StableCorrection -lt $t.StableCorrection) { return -1 }
+    if ($c.StableCorrection -gt $t.StableCorrection) { return 1 }
     return 0
 }
 

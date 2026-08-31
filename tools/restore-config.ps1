@@ -12,6 +12,72 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+function Get-OcDirectoryInventory {
+    param([string]$Root)
+    $base = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    return @(
+        Get-ChildItem -LiteralPath $base -Recurse -File -Force |
+            Sort-Object FullName |
+            ForEach-Object {
+                [pscustomobject]@{
+                    path = [IO.Path]::GetRelativePath($base, $_.FullName).Replace('\', '/')
+                    length = [int64]$_.Length
+                    sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+                }
+            }
+    )
+}
+
+function Copy-OcDirectoryExact {
+    param([string]$Source, [string]$Target)
+    $sourceInventory = @(Get-OcDirectoryInventory $Source)
+    if ($sourceInventory.Count -eq 0) { throw 'Credentials backup is empty.' }
+    $parent = Split-Path -Parent $Target
+    $nonce = [Guid]::NewGuid().ToString('N')
+    $candidate = Join-Path $parent ".credentials-candidate-$nonce"
+    $rollback = Join-Path $parent "credentials.pre-restore-$nonce"
+    $failed = Join-Path $parent ".credentials-failed-$nonce"
+    $oldMoved = $false
+    $newActivated = $false
+    try {
+        New-Item -ItemType Directory -Path $candidate | Out-Null
+        Get-ChildItem -LiteralPath $Source -Force | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $candidate -Recurse -Force
+        }
+        if (((Get-OcDirectoryInventory $candidate) | ConvertTo-Json -Compress) -cne
+            ($sourceInventory | ConvertTo-Json -Compress)) {
+            throw 'Credentials staging readback failed.'
+        }
+        if (Test-Path -LiteralPath $Target) {
+            Move-Item -LiteralPath $Target -Destination $rollback
+            $oldMoved = $true
+        }
+        Move-Item -LiteralPath $candidate -Destination $Target
+        $newActivated = $true
+        if (((Get-OcDirectoryInventory $Target) | ConvertTo-Json -Compress) -cne
+            ($sourceInventory | ConvertTo-Json -Compress)) {
+            throw 'Credentials restore readback failed.'
+        }
+        return $rollback
+    }
+    catch {
+        if ($newActivated -and (Test-Path -LiteralPath $Target)) {
+            Move-Item -LiteralPath $Target -Destination $failed
+        }
+        if ($oldMoved -and (Test-Path -LiteralPath $rollback)) {
+            Move-Item -LiteralPath $rollback -Destination $Target
+        }
+        throw
+    }
+    finally {
+        if (Test-Path -LiteralPath $candidate) {
+            Remove-Item -LiteralPath $candidate -Recurse -Force
+        }
+    }
+}
+
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 if ($Latest -or -not $From) {
     $privateBackupRoot = Join-Path $env:USERPROFILE '.openclaw\secrets-backup'
     $From = (Get-ChildItem $privateBackupRoot -Directory -Filter 'full-*' -ErrorAction SilentlyContinue |
@@ -28,7 +94,11 @@ Get-ChildItem $From -File | ForEach-Object {
     Write-Step "已恢复 $($_.Name)"
 }
 $credBak = Join-Path $From 'credentials'
-if (Test-Path $credBak) { Copy-Item $credBak (Join-Path $OC 'credentials') -Recurse -Force; Write-Step "已恢复 credentials\" }
+if (Test-Path $credBak) {
+    $rollback = Copy-OcDirectoryExact $credBak (Join-Path $OC 'credentials')
+    Write-Step "已精确恢复 credentials\"
+    if (Test-Path -LiteralPath $rollback) { Write-Info "原 credentials\ 已保留用于回退。" }
+}
 
 if (-not $NoRestart) { Start-Gateway }
 Write-Host "`n✅ 恢复完成。" -ForegroundColor Green

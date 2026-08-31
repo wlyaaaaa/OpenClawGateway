@@ -7,15 +7,36 @@ $root = Join-Path $env:TEMP "openclaw-backup-config-test-$PID"
 $fakeProfile = Join-Path $root 'profile'
 $fakeConfig = Join-Path $fakeProfile '.openclaw'
 $dest = Join-Path $root 'backups'
+$fakeBin = Join-Path $root 'bin'
 $oldProfile = $env:USERPROFILE
 $oldPath = $env:PATH
 
 try {
     New-Item -ItemType Directory -Path $fakeConfig -Force | Out-Null
+    New-Item -ItemType Directory -Path $fakeBin -Force | Out-Null
     '{"fixture":true}' | Set-Content -LiteralPath (Join-Path $fakeConfig 'openclaw.json') -Encoding utf8
+    $fakeOpenClaw = @'
+param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+$index = [Array]::IndexOf($Arguments, '--output')
+if ($index -lt 0) { exit 2 }
+$archive = $Arguments[$index + 1]
+[IO.File]::WriteAllText($archive, 'fixture archive', [Text.UTF8Encoding]::new($false))
+[ordered]@{
+    dryRun = $false
+    verified = $true
+    includeWorkspace = $false
+    assets = @([ordered]@{ kind = 'state' })
+    archivePath = $archive
+} | ConvertTo-Json -Depth 5
+'@
+    [IO.File]::WriteAllText(
+        (Join-Path $fakeBin 'openclaw.ps1'),
+        $fakeOpenClaw,
+        [Text.UTF8Encoding]::new($false)
+    )
     $env:USERPROFILE = $fakeProfile
-    # Prevent the optional native `openclaw backup` call from reading real state.
-    $env:PATH = ''
+    # Route the native backup command to an isolated fixture implementation.
+    $env:PATH = $fakeBin + [IO.Path]::PathSeparator + $oldPath
 
     $output = & (Join-Path $PSScriptRoot 'backup-config.ps1') -Dest $dest -Json
     $result = $output | ConvertFrom-Json
@@ -23,6 +44,10 @@ try {
     if ($result.ok -ne $true) { throw 'backup result was not ok' }
     if (-not (Test-Path -LiteralPath $result.backup_path)) { throw 'reported backup_path does not exist' }
     if (-not (Test-Path -LiteralPath (Join-Path $result.backup_path 'openclaw.json'))) { throw 'openclaw.json was not copied' }
+    if ($result.native_backup_verified -ne $true -or
+        -not (Test-Path -LiteralPath $result.native_archive_path -PathType Leaf)) {
+        throw 'native backup was not verified'
+    }
     $secondOutput = & (Join-Path $PSScriptRoot 'backup-config.ps1') -Dest $dest -Json
     $second = $secondOutput | ConvertFrom-Json
     if ($second.backup_path -eq $result.backup_path) { throw 'back-to-back backups reused the same rollback directory' }

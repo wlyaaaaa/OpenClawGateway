@@ -43,13 +43,18 @@ if ($copied.Count -eq 0) {
     throw "No OpenClaw configuration files found under $OC; refusing to report an empty backup as successful."
 }
 
-# 原生归档（best-effort）
-try {
-    & openclaw backup create --out (Join-Path $dir 'openclaw-native-backup') 2>$null | Out-Null
-    if (-not $Json) { Write-Info "原生 openclaw backup 已尝试生成" }
-} catch {
-    if (-not $Json) { Write-Info "原生 backup 不可用，跳过（文件级备份已完成）" }
+# 原生归档必须由 OpenClaw 自己校验通过。
+$nativeOutput = Join-Path $dir 'openclaw-native-backup.zip'
+$nativeRaw = & openclaw backup create --output $nativeOutput --no-include-workspace --verify --json 2>$null | Out-String
+if ($LASTEXITCODE -ne 0) { throw 'OpenClaw native backup failed.' }
+try { $native = $nativeRaw | ConvertFrom-Json -Depth 20 }
+catch { throw 'OpenClaw native backup returned invalid JSON.' }
+if ($native.dryRun -eq $true -or $native.verified -ne $true -or
+    $native.includeWorkspace -ne $false -or @($native.assets).Count -eq 0 -or
+    -not (Test-Path -LiteralPath ([string]$native.archivePath) -PathType Leaf)) {
+    throw 'OpenClaw native backup verification failed.'
 }
+if (-not $Json) { Write-Info "原生 OpenClaw 归档已校验通过" }
 
 if ($Json) {
     [ordered]@{
@@ -57,6 +62,8 @@ if ($Json) {
         ok = $true
         backup_path = (Resolve-Path -LiteralPath $dir).Path
         copied_items = @($copied)
+        native_backup_verified = $true
+        native_archive_path = [string]$native.archivePath
     } | ConvertTo-Json -Depth 5
 } else {
     Write-Host "`n✅ 备份完成 → $dir" -ForegroundColor Green
