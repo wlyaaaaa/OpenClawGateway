@@ -27,13 +27,26 @@ function Invoke-Backup {
     Add-TestTrace 'backup'
     return [ordered]@{ ok=[bool]$scenario.backup_ok; backup_path='E:\fake-backup'; error=$(if($scenario.backup_ok){$null}else{'injected backup failure'}) }
 }
-function Test-IsAdmin { return [bool]$scenario.is_admin }
-function Resolve-NpmCmd { return 'C:\fake\npm.cmd' }
 function Invoke-ExternalLines {
     param([string]$FilePath, [string[]]$ArgumentList, [int]$TimeoutSec)
-    if ($ArgumentList -contains 'install') {
-        Add-TestTrace 'npm_install'
-        return [pscustomobject]@{ ExitCode=[int]$scenario.npm_exit; Lines=@('npm'); Text='npm'; Stdout='npm'; Stderr=''; TimedOut=$false }
+    if ($ArgumentList -contains 'update' -and $ArgumentList -contains '--tag') {
+        Add-TestTrace 'official_update'
+        $code = [int]$scenario.npm_exit
+        $stdout = if ($code -eq 0) {
+            [ordered]@{
+                status='ok'
+                after=[ordered]@{ version=[string]$scenario.installed_version }
+                postUpdate=[ordered]@{
+                    plugins=[ordered]@{
+                        status='ok'
+                        sync=[ordered]@{ errors=@() }
+                        integrityDrifts=@()
+                        npm=[ordered]@{ outcomes=@() }
+                    }
+                }
+            } | ConvertTo-Json -Depth 8
+        } else { '' }
+        return [pscustomobject]@{ ExitCode=$code; Lines=@($stdout); Text=$stdout; Stdout=$stdout; Stderr=''; TimedOut=$false }
     }
     if ($ArgumentList -contains '--version') {
         $code = [int]$scenario.version_probe_exit
@@ -49,6 +62,14 @@ function Get-TaskState {
     return 'Running'
 }
 function Get-ScheduledTask { param([string]$TaskName) return [pscustomobject]@{ TaskName=$TaskName; State='Running' } }
+function Stop-Gateway { Add-TestTrace 'stop' }
+function Start-Gateway {
+    Add-TestTrace 'start'
+    if (-not $scenario.wait_healthy -or -not $scenario.listener_changed) {
+        throw 'injected start failure'
+    }
+}
+function Test-OcGatewayHealth { return [bool]$scenario.port_listening }
 function Get-PortOwningProcessIds { param([int]$Port) return @(111) }
 function Wait-GatewayHealthy {
     param([int]$Port,[int]$MaxWaitSec,[int]$StableSec,[int[]]$PreviousOwningProcessIds=@())
@@ -101,7 +122,7 @@ function Set-OCConfigValue { param([string]$Key,[string]$Value) }
         $env:OPENCLAW_MANAGED_TEST_TRACE = $script:TracePath
         $env:OPENCLAW_MANAGED_TESTING = '1'
         $env:OPENCLAW_MANAGED_TEST_HOOKS = $script:HookPath
-        $output = pwsh -NoProfile -File $script:Adapter -Update -Json -RestartScript $script:RestartOk 2>$null
+        $output = pwsh -NoProfile -File $script:Adapter -Update -Json 2>$null
         $exitCode = $LASTEXITCODE
         $trace = if (Test-Path $script:TracePath) { @(Get-Content -LiteralPath $script:TracePath) } else { @() }
         return [pscustomobject]@{ Receipt=($output | ConvertFrom-Json); ExitCode=$exitCode; Trace=$trace }
@@ -133,7 +154,7 @@ Describe 'Production managed-component state machine' {
         $r.Receipt.overall | Should -Be 'succeeded'
         $r.Receipt.changed | Should -BeFalse
         $r.Trace | Should -Not -Contain 'backup'
-        $r.Trace | Should -Not -Contain 'npm_install'
+        $r.Trace | Should -Not -Contain 'official_update'
         $r.ExitCode | Should -Be 0
     }
 
@@ -141,28 +162,28 @@ Describe 'Production managed-component state machine' {
         $r = Invoke-ProductionScenario -Relation equal -Health degraded
         $r.Receipt.overall | Should -Be 'succeeded'
         ($r.Receipt.failed_checks -join ' ') | Should -Match 'health_degraded'
-        $r.Trace | Should -Not -Contain 'npm_install'
+        $r.Trace | Should -Not -Contain 'official_update'
     }
 
     It 'unknown and channel_mismatch never start a transaction' -ForEach @('unknown','channel_mismatch') {
         $r = Invoke-ProductionScenario -Relation $_
         $r.Receipt.overall | Should -Be 'failed'
         $r.Trace | Should -Not -Contain 'backup'
-        $r.Trace | Should -Not -Contain 'npm_install'
+        $r.Trace | Should -Not -Contain 'official_update'
         $r.ExitCode | Should -Not -Be 0
     }
 
     It 'ahead never downgrades' {
         $r = Invoke-ProductionScenario -Relation ahead
         $r.Receipt.overall | Should -Be 'succeeded'
-        $r.Trace | Should -Not -Contain 'npm_install'
+        $r.Trace | Should -Not -Contain 'official_update'
     }
 
-    It 'backup failure prevents npm install' {
+    It 'backup failure prevents the official update' {
         $r = Invoke-ProductionScenario -Relation behind -BackupOk $false
         $r.Receipt.phases.backup | Should -Be 'failed'
         $r.Trace | Should -Contain 'backup'
-        $r.Trace | Should -Not -Contain 'npm_install'
+        $r.Trace | Should -Not -Contain 'official_update'
         $r.ExitCode | Should -Not -Be 0
     }
 
@@ -172,7 +193,9 @@ Describe 'Production managed-component state machine' {
         $r.Receipt.installed_version | Should -Be '2026.7.2'
         $r.Receipt.phases.backup | Should -Be 'passed'
         $r.Receipt.phases.verify | Should -Be 'passed'
-        $r.Trace | Should -Contain 'npm_install'
+        $r.Trace | Should -Contain 'stop'
+        $r.Trace | Should -Contain 'official_update'
+        $r.Trace | Should -Contain 'start'
         $r.ExitCode | Should -Be 0
     }
 
@@ -183,12 +206,12 @@ Describe 'Production managed-component state machine' {
         $r.ExitCode | Should -Be 2
     }
 
-    It 'treats a post-install version probe failure as partial even if stderr mentions a version' {
-        $r = Invoke-ProductionScenario -Relation behind -VersionProbeExit 1
-        $r.Receipt.overall | Should -Be 'partial'
-        $r.Receipt.changed | Should -BeTrue
+    It 'does not report success when the official update fails before changing version' {
+        $r = Invoke-ProductionScenario -Relation behind -NpmExit 1 -InstalledVersion '2026.7.1'
+        $r.Receipt.overall | Should -Be 'failed'
+        $r.Receipt.changed | Should -BeFalse
         $r.Receipt.phases.update | Should -Be 'failed'
-        $r.ExitCode | Should -Be 2
+        $r.ExitCode | Should -Be 1
     }
 
     It 'restart or verification failure cannot report success' -ForEach @(

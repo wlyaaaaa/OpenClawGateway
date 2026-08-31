@@ -28,6 +28,7 @@ $archive = $Arguments[$index + 1]
     assets = @([ordered]@{ kind = 'state' })
     archivePath = $archive
 } | ConvertTo-Json -Depth 5
+exit 0
 '@
     [IO.File]::WriteAllText(
         (Join-Path $fakeBin 'openclaw.ps1'),

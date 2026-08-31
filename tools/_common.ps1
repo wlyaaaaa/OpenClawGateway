@@ -102,7 +102,7 @@ function Restart-Gateway {
     if (@($after | Where-Object { $_ -notin $before }).Count -eq 0) {
         throw 'OpenClaw Gateway listener did not restart.'
     }
-    Write-Step '网关已安全重启并通过健康回读。'
+    Write-Step '网关已重启并通过健康回读。'
 }
 
 # 安全的标量配置写入（经原生 CLI 校验）
