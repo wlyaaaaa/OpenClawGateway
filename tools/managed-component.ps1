@@ -206,9 +206,35 @@ function Invoke-Verify {
         $failed += "version_mismatch: installed=$InstalledVersion expected=$ExpectedVersion"
     }
 
-    $api = Get-OCConfigValue -Key 'models.providers.openai.api'
-    if ($api -ne 'openai-completions') {
-        $failed += "api_mode: expected openai-completions, got $api"
+    $configRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+        'config', 'validate', '--json'
+    ) -TimeoutSec 30
+    try { $configValid = $configRun.ExitCode -eq 0 -and ($configRun.Stdout | ConvertFrom-Json).valid -eq $true }
+    catch { $configValid = $false }
+    if (-not $configValid) {
+        $failed += 'config_schema_invalid'
+    }
+
+    $rpcRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+        'gateway', 'status', '--require-rpc', '--json'
+    ) -TimeoutSec 30
+    try { $rpcOk = $rpcRun.ExitCode -eq 0 -and ($rpcRun.Stdout | ConvertFrom-Json).rpc.ok -eq $true }
+    catch { $rpcOk = $false }
+    if (-not $rpcOk) {
+        $failed += 'gateway_rpc_unavailable'
+    }
+
+    foreach ($provider in @('qwen', 'deepseek')) {
+        $modelRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+            'models', 'list', '--all', '--provider', $provider, '--json'
+        ) -TimeoutSec 30
+        try {
+            $models = $modelRun.Stdout | ConvertFrom-Json
+            $providerReady = $modelRun.ExitCode -eq 0 -and [int]$models.count -gt 0
+        } catch { $providerReady = $false }
+        if (-not $providerReady) {
+            $failed += "provider_route_missing: $provider"
+        }
     }
 
     $checkOnStart = Get-OCConfigValue -Key 'update.checkOnStart'
@@ -279,15 +305,22 @@ function Invoke-Update {
     # R7: state machine by relation
     switch ($relation) {
         'equal' {
-            $receipt.overall = 'succeeded'
             $receipt.installed_version = $previousVersion
-            $receipt.phases.verify = 'passed'
+            $verifyFailed = @(Invoke-Verify -ExpectedVersion $targetVersion -InstalledVersion $previousVersion)
             if ($health -ne 'healthy') {
                 $receipt.failed_checks += "health_degraded: $health (no reinstall — update is not repair)"
                 $receipt.notes += "health=$health but no update performed (equal version)"
             }
+            $receipt.failed_checks += $verifyFailed
+            if ($health -eq 'healthy' -and $verifyFailed.Count -eq 0) {
+                $receipt.overall = 'succeeded'
+                $receipt.phases.verify = 'passed'
+            } else {
+                $receipt.overall = 'failed'
+                $receipt.phases.verify = 'failed'
+            }
             Write-JsonResult -Data $receipt -ResultPath $ResultPath
-            exit 0
+            if ($receipt.overall -eq 'succeeded') { exit 0 } else { exit 1 }
         }
         'ahead' {
             $receipt.overall = 'succeeded'
@@ -390,31 +423,14 @@ function Invoke-Update {
         $currentRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @('--version') -TimeoutSec 30
         $currentVersion = Get-OpenClawVersionToken -Text $currentRun.Stdout
         $changedOnFailure = $currentVersion -and $currentVersion -cne $previousVersion
-        try {
-            if ($changedOnFailure) {
-                $null = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
-                    'update', '--tag', $previousVersion, '--yes', '--json',
-                    '--no-restart', '--timeout', '1800'
-                ) -TimeoutSec 10800
-                & pwsh -NoProfile -ExecutionPolicy Bypass -File $RestoreScript -From $backupResult.backup_path -NoRestart
-                if ($LASTEXITCODE -ne 0) { throw 'configuration restore failed' }
-            }
-            Start-Gateway
-        } catch {
-            $receipt.failed_checks += 'rollback_or_restart_failed'
-        }
+        $receipt.notes += 'Automatic version/config downgrade is disabled; use openclaw update repair for the installed generation.'
+        try { Start-Gateway }
+        catch { $receipt.failed_checks += 'restart_after_failed_update_failed' }
         $receipt.overall = if ($changedOnFailure) { 'partial' } else { 'failed' }
         $receipt.changed = [bool]$changedOnFailure
         $receipt.failed_checks += 'official_update_failed'
         Write-JsonResult -Data $receipt -ResultPath $ResultPath
         if ($changedOnFailure) { exit 2 } else { exit 1 }
-    }
-
-    # --- behind: self-heal critical config ---
-    $api = Get-OCConfigValue -Key 'models.providers.openai.api'
-    if ($api -ne 'openai-completions') {
-        Set-OCConfigValue -Key 'models.providers.openai.api' -Value 'openai-completions'
-        [Console]::Error.WriteLine("Self-heal: re-asserted api=openai-completions (was: $api)")
     }
 
     # --- behind: start the updated Gateway ---

@@ -2,7 +2,7 @@
 
 # 🦞 OpenClawGateway
 
-**Windows 11 上 OpenClaw v2026.6.8 个人智能体网关的运维工具集**
+**Windows 11 上 OpenClaw 2.0（v2026.8.1）个人智能体网关的运维工具集**
 
 静默开机自启 · 心跳自愈 · 手动受控更新 · 成本安全模式 · 模型/提供方一键切换
 
@@ -68,7 +68,7 @@ E:\Projects\Tools\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私�
 | [docs/AUDIT.md](docs/AUDIT.md) | 深度审计记录 |
 
 ## ⚙️ 当前状态（参考）
-- 版本 v2026.6.10（stable）｜ heartbeat 固定使用远程 `qwen3.7-plus` + 轻量隔离上下文；手动主模型可独立切换
+- 版本 v2026.8.1（OpenClaw 2.0 stable）｜远程 Qwen / DeepSeek 独立配置；本地路线为 Qwen3.8 27B + Qwen3.6 35B
 - 网关 loopback:18789，堆 1536MB｜ API：**已启用（ON）**，闲时 `api.ps1 off` 回零花费
 - 计划任务：`OpenClaw Gateway`(自启)、`Heartbeat`(15min)、`AutoPush`(每日) 均 **Ready**；
   `OpenClaw Update` **Disabled**（故意，改用 `openclaw_update.ps1` 手动+自愈，避免原生 doctor 改坏配置）
@@ -78,4 +78,4 @@ E:\Projects\Tools\OpenClawGateway\bootstrap\setup.ps1 -RestoreFrom "<你的私�
 - 凭据和本地备份只在 `C:\Users\<USER>\.openclaw\` 或私有备份仓库，公开仓库不保存真实 secrets、运行日志或记忆快照。
 
 ---
-基于 [OpenClaw](https://docs.openclaw.ai) v2026.6.10 原生 `daemon` / `update` 机制构建。
+基于 [OpenClaw](https://docs.openclaw.ai) v2026.8.1 原生 `gateway` / `update` 机制构建。

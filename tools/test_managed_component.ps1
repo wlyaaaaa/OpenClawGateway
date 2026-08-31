@@ -54,6 +54,20 @@ function Invoke-ExternalLines {
         $stderr = if ($code -eq 0) { '' } else { "injected failure mentioning $($scenario.installed_version)" }
         return [pscustomobject]@{ ExitCode=$code; Lines=@($stdout); Text=($stdout + $stderr); Stdout=$stdout; Stderr=$stderr; TimedOut=$false }
     }
+    if ($ArgumentList[0] -eq 'config' -and $ArgumentList[1] -eq 'validate') {
+        $stdout = @{ valid=[bool]$scenario.config_valid } | ConvertTo-Json -Compress
+        return [pscustomobject]@{ ExitCode=$(if($scenario.config_valid){0}else{1}); Lines=@($stdout); Text=$stdout; Stdout=$stdout; Stderr=''; TimedOut=$false }
+    }
+    if ($ArgumentList[0] -eq 'gateway' -and $ArgumentList[1] -eq 'status') {
+        $stdout = @{ rpc=@{ ok=[bool]$scenario.rpc_ok } } | ConvertTo-Json -Compress
+        return [pscustomobject]@{ ExitCode=$(if($scenario.rpc_ok){0}else{1}); Lines=@($stdout); Text=$stdout; Stdout=$stdout; Stderr=''; TimedOut=$false }
+    }
+    if ($ArgumentList[0] -eq 'models' -and $ArgumentList[1] -eq 'list') {
+        $provider = [string]$ArgumentList[4]
+        $ready = if ($provider -eq 'qwen') { [bool]$scenario.qwen_configured } else { [bool]$scenario.deepseek_configured }
+        $stdout = @{ count=$(if($ready){1}else{0}); models=@() } | ConvertTo-Json -Compress
+        return [pscustomobject]@{ ExitCode=0; Lines=@($stdout); Text=$stdout; Stdout=$stdout; Stderr=''; TimedOut=$false }
+    }
     return [pscustomobject]@{ ExitCode=0; Lines=@('ok'); Text='ok'; Stdout='ok'; Stderr=''; TimedOut=$false }
 }
 function Get-TaskState {
@@ -82,14 +96,12 @@ function Test-PortListening { param([int]$Port) return [bool]$scenario.port_list
 function Get-OCConfigValue {
     param([string]$Key)
     switch ($Key) {
-        'models.providers.openai.api' { return [string]$scenario.api_mode }
         'update.checkOnStart' { return [string]$scenario.check_on_start }
         'update.auto' { return '{"enabled":false}' }
         'channels.telegram.allowFrom' { return [string]$scenario.telegram_allow }
         default { return $null }
     }
 }
-function Set-OCConfigValue { param([string]$Key,[string]$Value) }
 '@ | Set-Content -LiteralPath $script:HookPath -Encoding utf8
 
     function Invoke-ProductionScenario {
@@ -105,7 +117,10 @@ function Set-OCConfigValue { param([string]$Key,[string]$Value) }
             [bool]$RequireListenerTransition = $false,
             [bool]$ListenerChanged = $true,
             [bool]$PortListening = $true,
-            [string]$ApiMode = 'openai-completions',
+            [bool]$ConfigValid = $true,
+            [bool]$RpcOk = $true,
+            [bool]$QwenConfigured = $true,
+            [bool]$DeepseekConfigured = $true,
             [string]$CheckOnStart = 'false',
             [string]$TelegramAllow = 'user1,user2',
             [string]$UpdateTaskState = 'Disabled'
@@ -114,7 +129,8 @@ function Set-OCConfigValue { param([string]$Key,[string]$Value) }
         $scenario = [ordered]@{
             status = [ordered]@{ current_version='2026.7.1'; target_version=$target; channel='stable'; relation=$Relation; current_probe_ok=$true; target_probe_ok=($null -ne $target); health=$Health }
             backup_ok=$BackupOk; is_admin=$IsAdmin; npm_exit=$NpmExit; installed_version=$InstalledVersion; version_probe_exit=$VersionProbeExit
-            wait_healthy=$WaitHealthy; require_listener_transition=$RequireListenerTransition; listener_changed=$ListenerChanged; port_listening=$PortListening; api_mode=$ApiMode
+            wait_healthy=$WaitHealthy; require_listener_transition=$RequireListenerTransition; listener_changed=$ListenerChanged; port_listening=$PortListening
+            config_valid=$ConfigValid; rpc_ok=$RpcOk; qwen_configured=$QwenConfigured; deepseek_configured=$DeepseekConfigured
             check_on_start=$CheckOnStart; telegram_allow=$TelegramAllow; update_task_state=$UpdateTaskState
         }
         $scenario | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $script:ScenarioPath -Encoding utf8
@@ -161,9 +177,10 @@ Describe 'Production managed-component state machine' {
 
     It 'equal degraded reports health without reinstalling' {
         $r = Invoke-ProductionScenario -Relation equal -Health degraded
-        $r.Receipt.overall | Should -Be 'succeeded'
+        $r.Receipt.overall | Should -Be 'failed'
         ($r.Receipt.failed_checks -join ' ') | Should -Match 'health_degraded'
         $r.Trace | Should -Not -Contain 'official_update'
+        $r.ExitCode | Should -Be 1
     }
 
     It 'unknown and channel_mismatch never start a transaction' -ForEach @('unknown','channel_mismatch') {
@@ -212,6 +229,25 @@ Describe 'Production managed-component state machine' {
         $r.Receipt.overall | Should -Be 'failed'
         $r.Receipt.changed | Should -BeFalse
         $r.Receipt.phases.update | Should -Be 'failed'
+        $r.ExitCode | Should -Be 1
+    }
+
+    It 'does not downgrade or restore old config after a partial official update' {
+        $r = Invoke-ProductionScenario -Relation behind -NpmExit 1 -InstalledVersion '2026.8.1'
+        $r.Receipt.overall | Should -Be 'partial'
+        @($r.Trace | Where-Object { $_ -eq 'official_update' }).Count | Should -Be 1
+        $r.Trace | Should -Contain 'start'
+        ($r.Receipt.notes -join ' ') | Should -Match 'update repair'
+        $r.ExitCode | Should -Be 2
+    }
+
+    It 'requires schema, RPC, Qwen, and DeepSeek routes at equal version' {
+        $r = Invoke-ProductionScenario -Relation equal -ConfigValid $false -RpcOk $false -QwenConfigured $false -DeepseekConfigured $false
+        $r.Receipt.overall | Should -Be 'failed'
+        ($r.Receipt.failed_checks -join ' ') | Should -Match 'config_schema_invalid'
+        ($r.Receipt.failed_checks -join ' ') | Should -Match 'gateway_rpc_unavailable'
+        ($r.Receipt.failed_checks -join ' ') | Should -Match 'provider_route_missing: qwen'
+        ($r.Receipt.failed_checks -join ' ') | Should -Match 'provider_route_missing: deepseek'
         $r.ExitCode | Should -Be 1
     }
 

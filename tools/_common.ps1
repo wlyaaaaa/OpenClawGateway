@@ -20,29 +20,57 @@ function Get-OcListenerPids {
 
 function Test-OcDaemonAck {
     param($Payload, [string]$Action)
-    if ($null -eq $Payload -or $Payload.ok -ne $true -or
-        [string]$Payload.action -cne $Action -or
-        -not [string]::IsNullOrWhiteSpace([string]$Payload.error)) {
+    if ($null -eq $Payload) { return $false }
+    $ok = $Payload.PSObject.Properties['ok']
+    $errorProperty = $Payload.PSObject.Properties['error']
+    $actionProperty = $Payload.PSObject.Properties['action']
+    $resultProperty = $Payload.PSObject.Properties['result']
+    $actionValue = if ($null -ne $actionProperty) { [string]$actionProperty.Value } else { '' }
+    $resultValue = if ($null -ne $resultProperty) { [string]$resultProperty.Value } else { '' }
+    if ($null -eq $ok -or $ok.Value -ne $true -or
+        ($null -ne $errorProperty -and
+         -not [string]::IsNullOrWhiteSpace([string]$errorProperty.Value))) {
         return $false
     }
+    if ($Action -eq 'restart') {
+        if ($actionValue -ceq 'restart' -and $resultValue -ceq 'restarted') {
+            return $true
+        }
+        $restart = $Payload.PSObject.Properties['restart']
+        if ($null -eq $restart -or $null -eq $restart.Value) { return $false }
+        $restartOk = $restart.Value.PSObject.Properties['ok']
+        $restartPid = $restart.Value.PSObject.Properties['pid']
+        $restartReason = $restart.Value.PSObject.Properties['reason']
+        return $resultValue -cin @('scheduled', 'deferred', 'coalesced') -and
+            $null -ne $restartOk -and $restartOk.Value -eq $true -and
+            $null -ne $restartPid -and [int]$restartPid.Value -gt 0 -and
+            $null -ne $restartReason -and
+            [string]$restartReason.Value -ceq 'gateway.restart.safe'
+    }
+    if ($actionValue -cne $Action) { return $false }
     switch ($Action) {
-        'stop' { return [string]$Payload.result -ceq 'stopped' }
-        'start' { return [string]$Payload.result -cin @('started', 'scheduled') }
-        'restart' { return [string]$Payload.result -cin @('restarted', 'scheduled') }
+        'stop' { return $resultValue -ceq 'stopped' }
+        'start' { return $resultValue -cin @('started', 'scheduled') }
     }
     return $false
 }
 
 function Invoke-OcDaemonAction {
     param([ValidateSet('start', 'stop', 'restart')][string]$Action)
+    $script:OcLastDaemonResult = $null
     $arguments = if ($Action -eq 'restart') {
         @('gateway', 'restart', '--safe', '--json')
+    } elseif ($Action -eq 'stop') {
+        @('gateway', 'stop', '--force', '--json')
     } else {
         @('gateway', $Action, '--json')
     }
     $raw = & openclaw @arguments 2>$null | Out-String
     if ($LASTEXITCODE -ne 0) { return $false }
-    try { return Test-OcDaemonAck ($raw | ConvertFrom-Json) $Action }
+    try {
+        $script:OcLastDaemonResult = $raw | ConvertFrom-Json
+        return Test-OcDaemonAck $script:OcLastDaemonResult $Action
+    }
     catch { return $false }
 }
 
@@ -100,6 +128,10 @@ function Restart-Gateway {
     $before = @(Get-OcListenerPids)
     if ($before.Count -ne 1 -or -not (Invoke-OcDaemonAction restart)) {
         throw 'OpenClaw official restart failed.'
+    }
+    if ([string]$script:OcLastDaemonResult.result -cin @('deferred', 'coalesced')) {
+        Write-Step '网关重启已排队；当前调用结束后由外部状态回读验收。'
+        return
     }
     $after = @(Wait-OcGateway $true 120)
     if (@($after | Where-Object { $_ -notin $before }).Count -eq 0) {

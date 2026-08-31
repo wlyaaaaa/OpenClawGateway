@@ -1,9 +1,10 @@
 ﻿# =====================================================================
 #  OpenClaw Gateway Heartbeat Watchdog
-#  Checks if port 18789 is alive. If not, restarts the OpenClaw Gateway task.
+#  Checks the official Gateway health/RPC surface. If unhealthy, uses the
+#  OpenClaw 2.0 lifecycle commands to start or queue a restart.
 #  Log output: E:\Projects\Tools\OpenClawGateway\logs\openclaw_heartbeat.log
 # =====================================================================
-$ErrorActionPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'Stop'
 
 $root = $PSScriptRoot
 if (-not $root) { $root = Split-Path -Parent $MyInvocation.MyCommand.Path }
@@ -11,6 +12,7 @@ if (-not $root) { $root = 'E:\Projects\Tools\OpenClawGateway' }
 $logDir = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'logs\OpenClawGateway'
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 $logFile = Join-Path $logDir 'openclaw_heartbeat.log'
+. (Join-Path $root 'tools\_common.ps1')
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -18,39 +20,31 @@ function Log([string]$m) {
     Write-Host $line
 }
 
-$port = 18789
-$taskName = "OpenClaw Gateway"
-
-# Check if port is listening
-Log "Testing TCP connection to 127.0.0.1 on port $port..."
-$connection = Test-NetConnection -ComputerName "127.0.0.1" -Port $port -WarningAction SilentlyContinue
-
-if ($connection.TcpTestSucceeded -eq $true) {
-    Log "[OK] Port $port is active. Gateway is healthy."
-} else {
-    Log "[WARN] Port $port is unresponsive! Attempting to restart '$taskName' scheduled task..."
-    
-    # Retrieve scheduled task status
-    $task = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    if ($task) {
-        # Stopping task if running
-        Log "Stopping '$taskName'..."
-        Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 3
-        
-        # Starting task
-        Log "Starting '$taskName'..."
-        Start-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 2
-        
-        # Verify if started
-        $connectionRetry = Test-NetConnection -ComputerName "127.0.0.1" -Port $port -WarningAction SilentlyContinue
-        if ($connectionRetry.TcpTestSucceeded -eq $true) {
-            Log "[OK] Gateway successfully restarted and port $port is active."
-        } else {
-            Log "[ERROR] Gateway task started, but port $port is still unresponsive."
-        }
-    } else {
-        Log "[ERROR] Scheduled task '$taskName' not found! Cannot perform auto-heal."
+try {
+    Log 'Checking OpenClaw Gateway health...'
+    if (Test-OcGatewayHealth) {
+        Log '[OK] Gateway health and event loop are normal.'
+        exit 0
     }
+
+    $pids = @(Get-OcListenerPids)
+    if ($pids.Count -eq 0) {
+        Log '[WARN] Gateway is not listening; requesting official start.'
+        Start-Gateway
+    } elseif ($pids.Count -eq 1) {
+        Log '[WARN] Gateway listener is unhealthy; requesting official safe restart.'
+        Restart-Gateway
+    } else {
+        throw "unexpected Gateway listener count: $($pids.Count)"
+    }
+
+    if (Test-OcGatewayHealth) {
+        Log '[OK] Gateway recovered and passed health readback.'
+    } else {
+        Log '[INFO] Recovery request accepted; a deferred restart remains queued.'
+    }
+}
+catch {
+    Log "[ERROR] Gateway recovery failed: $($_.Exception.Message)"
+    exit 1
 }
