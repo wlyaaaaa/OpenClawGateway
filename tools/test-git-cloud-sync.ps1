@@ -131,9 +131,9 @@ exit /b 0
     }
 
     $autoArchiveText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'auto-archive-push.ps1') -Raw
-    if ($autoArchiveText -notmatch 'networkRetryDelaysSeconds\s*=\s*@\(15,\s*45,\s*120,\s*240\)' -or
+    if ($autoArchiveText -notmatch 'networkRetryDelaysSeconds\s*=\s*@\(\)' -or
         @([regex]::Matches($autoArchiveText, '-NetworkRetryDelaysSeconds\s+\$networkRetryDelaysSeconds')).Count -lt 2) {
-        throw 'Auto-archive must use and propagate a retry budget shorter than its 15-minute task limit.'
+        throw 'Auto-archive must propagate an empty temporal-retry budget so multiple Git operations cannot compound sleeps past its task limit.'
     }
 
     $cleanAhead = New-BareTopology 'clean-ahead'

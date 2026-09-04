@@ -9,7 +9,11 @@ $repo = Split-Path $PSScriptRoot -Parent
 $logDir = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'logs\OpenClawGateway'; New-Item -ItemType Directory -Force $logDir | Out-Null
 $log = Join-Path $logDir 'auto-push.log'
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
-$networkRetryDelaysSeconds = @(15, 45, 120, 240)
+# This task has a 15-minute scheduler limit and performs several independent
+# remote Git operations.  A per-operation backoff would reset and compound
+# across fetch/push/readback.  Use the immediate direct + live-proxy attempt
+# only; on failure, preserve the worktree and return a real non-zero result.
+$networkRetryDelaysSeconds = @()
 function Log([string]$m){ ('{0}  {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) | Out-File $log -Append -Encoding utf8 }
 
 function Abort-Push([string]$reason, [string]$RestoreIndexTree) {
