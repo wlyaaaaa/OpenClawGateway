@@ -130,6 +130,12 @@ exit /b 0
         throw 'Transient Git retry fixture did not execute exactly three attempts.'
     }
 
+    $autoArchiveText = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'auto-archive-push.ps1') -Raw
+    if ($autoArchiveText -notmatch 'networkRetryDelaysSeconds\s*=\s*@\(15,\s*45,\s*120,\s*240\)' -or
+        @([regex]::Matches($autoArchiveText, '-NetworkRetryDelaysSeconds\s+\$networkRetryDelaysSeconds')).Count -lt 2) {
+        throw 'Auto-archive must use and propagate a retry budget shorter than its 15-minute task limit.'
+    }
+
     $cleanAhead = New-BareTopology 'clean-ahead'
     $clean = Invoke-VerifiedGitRemoteSync -Repository $cleanAhead.Local -Remote origin -Branch main
     if (-not $clean.Verified -or $clean.Pushed) {

@@ -219,7 +219,9 @@ function Get-GitRemoteState {
 
         [string]$Remote = 'origin',
 
-        [string]$Branch
+        [string]$Branch,
+
+        [int[]]$NetworkRetryDelaysSeconds = @(30, 120, 300, 900)
     )
 
     if (-not $Branch) {
@@ -231,7 +233,7 @@ function Get-GitRemoteState {
     $fetchRefspec = "+$remoteRef`:$trackingRef"
     Invoke-GitCapture -Repository $Repository -Arguments @(
         'fetch', '--quiet', '--prune', $Remote, $fetchRefspec
-    ) | Out-Null
+    ) -NetworkRetryDelaysSeconds $NetworkRetryDelaysSeconds | Out-Null
 
     $localOid = (Invoke-GitCapture -Repository $Repository -Arguments @('rev-parse', 'HEAD')).Text
     $trackingOid = (Invoke-GitCapture -Repository $Repository -Arguments @('rev-parse', $trackingRef)).Text
@@ -272,14 +274,16 @@ function Assert-GitRemoteHeadMatches {
         [string]$Remote = 'origin',
 
         [Parameter(Mandatory = $true)]
-        [string]$Branch
+        [string]$Branch,
+
+        [int[]]$NetworkRetryDelaysSeconds = @(30, 120, 300, 900)
     )
 
     $localOid = (Invoke-GitCapture -Repository $Repository -Arguments @('rev-parse', 'HEAD')).Text
     $remoteRef = "refs/heads/$Branch"
     $remoteText = (Invoke-GitCapture -Repository $Repository -Arguments @(
         'ls-remote', '--exit-code', $Remote, $remoteRef
-    )).Text
+    ) -NetworkRetryDelaysSeconds $NetworkRetryDelaysSeconds).Text
     $remoteLine = @($remoteText -split "\r?\n" | Where-Object { $_ -match "\s$([regex]::Escape($remoteRef))$" }) |
         Select-Object -First 1
     if (-not $remoteLine) {
@@ -300,19 +304,23 @@ function Invoke-VerifiedGitRemoteSync {
 
         [string]$Remote = 'origin',
 
-        [string]$Branch
+        [string]$Branch,
+
+        [int[]]$NetworkRetryDelaysSeconds = @(30, 120, 300, 900)
     )
 
-    $state = Get-GitRemoteState -Repository $Repository -Remote $Remote -Branch $Branch
+    $state = Get-GitRemoteState -Repository $Repository -Remote $Remote -Branch $Branch `
+        -NetworkRetryDelaysSeconds $NetworkRetryDelaysSeconds
     $pushed = $false
     if ($state.Ahead -gt 0) {
         Invoke-GitCapture -Repository $Repository -Arguments @(
             'push', '--quiet', $state.Remote, "HEAD:$($state.RemoteRef)"
-        ) | Out-Null
+        ) -NetworkRetryDelaysSeconds $NetworkRetryDelaysSeconds | Out-Null
         $pushed = $true
     }
 
-    $remoteOid = Assert-GitRemoteHeadMatches -Repository $Repository -Remote $state.Remote -Branch $state.Branch
+    $remoteOid = Assert-GitRemoteHeadMatches -Repository $Repository -Remote $state.Remote -Branch $state.Branch `
+        -NetworkRetryDelaysSeconds $NetworkRetryDelaysSeconds
     [PSCustomObject]@{
         Branch    = $state.Branch
         Ahead     = $state.Ahead
