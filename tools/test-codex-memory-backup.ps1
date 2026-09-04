@@ -125,7 +125,20 @@ try {
         throw "Dry-run selected too much data: $($data.totalSizeBytes) bytes"
     }
 
-    Write-Host "OK Codex memory backup dry-run manifest is safe ($($files.Count) files, $($data.totalSizeBytes) bytes)"
+    $wrapperDir = Join-Path $testRoot 'wrapper-exit'
+    New-Item -ItemType Directory -Path $wrapperDir -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'codex_memory_backup_hidden.vbs') -Destination $wrapperDir
+    [IO.File]::WriteAllText(
+        (Join-Path $wrapperDir 'backup-codex-memory.ps1'),
+        'exit 7',
+        [Text.UTF8Encoding]::new($false)
+    )
+    $null = & cscript.exe //nologo (Join-Path $wrapperDir 'codex_memory_backup_hidden.vbs') 2>$null
+    if ($LASTEXITCODE -ne 7) {
+        throw "Codex hidden wrapper did not propagate backup failure (exit=$LASTEXITCODE)."
+    }
+
+    Write-Host "OK Codex memory backup dry-run is safe and hidden wrapper propagates failures ($($files.Count) files, $($data.totalSizeBytes) bytes)"
 } finally {
     if ($null -eq $previousSettings) {
         Remove-Item -Path Env:OPENCLAW_PRIVATE_BACKUP_SETTINGS -ErrorAction SilentlyContinue

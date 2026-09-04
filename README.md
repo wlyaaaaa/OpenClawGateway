@@ -79,6 +79,7 @@ pwsh -NoProfile -File .\tools\restore-config.ps1 -From <archive> -Target <fresh-
 - 默认归档根是用户目录下的 `OpenClawBackups`，也可用 `OPENCLAW_BACKUP_DIR` 指定；它刻意位于 `.openclaw` 源状态目录之外。
 - 完整离线激活只链接 [OpenClaw Backup CLI](https://docs.openclaw.ai/cli/backup) 的官方流程；本轮未停 Gateway、未替换现役状态，也未把 staging（暂存）成功写成恢复完成。
 - `setup-codeg-bridge.ps1` 只向 Cline 配置中 upsert（插入或更新）`openclaw-bridge`，保留其他 MCP Server（模型上下文协议服务）；端口在线不等于真实 MCP 认证和工具调用成功。
+- 私人状态备份是 3 个 Windows 计划任务承载 4 个消费者：Codex 与 Gemini 各有独立任务；`OpenClaw Memory Backup` 在同一隐藏任务中先尝试 Claude，再尝试 OpenClaw，两段都会运行，最后传播第一段非零，否则传播第二段结果。三项任务分别在 20:05/22:05、20:10/22:10、20:20/22:20 触发；页面和运维判断不能把 4 个消费者写成 4 个任务。
 - WeFlow 的机器专用查询残件、旧模型注册脚本和无关个人静态站已经退役；它们不属于这个产品的公开能力。
 
 ## 文档

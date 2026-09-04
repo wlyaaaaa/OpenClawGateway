@@ -20,6 +20,7 @@
 - `tools/managed-component.ps1`：受控更新状态机；
 - `tools/g-hot-snapshot.ps1`、`tools/git-cloud-sync.ps1`：现有私人备份消费者使用的热备与 Git 同步组件；
 - `tools/private-backup-settings.ps1`：为仍有计划任务消费者的私人备份脚本读取被 Git 忽略的本机路径配置；公开源码不保存私库坐标或磁盘拓扑；
+- `tools/codex_memory_backup_hidden.vbs`、`gemini_memory_backup_hidden.vbs`、`memory_backup_hidden.vbs`：3 个隐藏计划任务入口。前两个各运行一个消费者；第三个依次尝试 Claude 与 OpenClaw 两个消费者，并传播第一段非零，否则传播第二段结果；
 - `tools/auto-archive-push.ps1`：公开仓库自动归档消费者，运行前执行公开内容门。
 
 ## 已退役入口
