@@ -1,5 +1,7 @@
 # 使用路径
 
+本页既可由人阅读，也可直接交给 AI Agent（智能体）作为运维入口地图。通常由 AI 执行只读检查、选择安全脚本并解释回执；人不需要长期打开 OpenCode、CodeG 或 PowerShell。CodeG/Cline 只是一条可选接入，不是使用这个项目的前提。
+
 ## 1. 先看当前状态
 
 ```powershell
@@ -8,7 +10,7 @@ pwsh -NoProfile -File .\api.ps1 status
 pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Json
 ```
 
-你会看到：OpenClaw 版本、Gateway RPC、配置、计划任务、默认模型、各 Provider 路由、渠道开关和 Funnel（外部 Tailscale 路由）状态。
+AI 会读取并向你解释：OpenClaw 版本、Gateway RPC、配置、计划任务、默认模型、各 Provider 路由、渠道开关和 Funnel（外部 Tailscale 路由）状态。
 
 状态解释：
 

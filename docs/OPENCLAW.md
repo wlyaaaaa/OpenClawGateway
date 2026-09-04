@@ -2,7 +2,9 @@
 
 ## 产品角色
 
-OpenClawGateway 是 OpenClaw 在 Windows 上的公开脱敏运维层。OpenClaw 自己拥有会话、模型、渠道、工具与官方 Gateway CLI；本仓库补充用户可读状态、Windows 常驻核对、心跳、人工受控更新、官方归档包装和 CodeG/Cline 接入。
+OpenClawGateway 是 OpenClaw 在 Windows 上的公开脱敏运维层。OpenClaw 自己拥有会话、模型、渠道、工具与官方 Gateway CLI；本仓库补充 AI 可调用、人可读的结构化状态、Windows 常驻核对、心跳、受控更新、官方归档包装和可选 CodeG/Cline 接入。
+
+主要消费者是 AI Agent（智能体）：它先读取状态与回执，再选择最窄的维护入口，并把真实结果、恢复点和未验项交给人。人不需要经常使用 OpenCode、CodeG 或终端；只有外部通信、付费调用、更新、修复注册和灾备激活等有影响动作才需要明确授权。CodeG/Cline 不可用时，状态、备份、更新和恢复能力仍然成立。
 
 ```text
 消息渠道

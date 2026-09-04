@@ -28,7 +28,7 @@ pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Json
 - 单一但不健康的 loopback 监听者：走官方 safe restart；
 - 多监听或非 loopback：失败关闭，避免误杀其他进程。
 
-## 人工受控更新
+## AI 编排、人在边界授权的受控更新
 
 自动更新任务保持 disabled。只读状态不会升级：
 
