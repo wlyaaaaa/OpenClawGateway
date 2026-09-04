@@ -1,11 +1,5 @@
 $PrivateBackupSettingsSchema = 'openclaw_gateway.private_backup_settings.v1'
 $PrivateBackupSettingsRequiredKeys = @{
-    codex_memory = @(
-        'source_root',
-        'snapshot_root',
-        'cloud_repo',
-        'log_file'
-    )
     gemini_memory = @(
         'source_root',
         'snapshot_root',
@@ -65,7 +59,7 @@ function Get-PrivateBackupSettings {
         [string]$DefaultSettingsPath,
 
         [Parameter(Mandatory)]
-        [ValidateSet('codex_memory', 'gemini_memory', 'claude_memory', 'openclaw')]
+        [ValidateSet('gemini_memory', 'claude_memory', 'openclaw')]
         [string]$Group
     )
 

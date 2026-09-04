@@ -85,8 +85,49 @@ try {
     if (-not (Test-GitNetworkFailureText -Text 'fatal: Failed to connect to github.com:443')) {
         throw 'Git network failures were not recognized for dynamic proxy retry.'
     }
+    if (-not (Test-GitNetworkFailureText -Text 'fatal: unable to access remote: TLS connect error: unexpected eof while reading')) {
+        throw 'Transient TLS EOF failures were not recognized for bounded retry.'
+    }
     if (Test-GitNetworkFailureText -Text 'remote: Invalid username or password') {
         throw 'Authentication failures must not be retried as proxy failures.'
+    }
+
+    # Task Scheduler records a completed wscript action even when its process
+    # returns a non-zero code, so prove the shared Git layer retries a transient
+    # transport failure itself.  The zero-delay fixture keeps the regression
+    # deterministic and fast.
+    $fakeGitRoot = Join-Path $testRoot 'fake-git'
+    $fakeGitCounter = Join-Path $fakeGitRoot 'attempt-count.txt'
+    New-Item -ItemType Directory -Path $fakeGitRoot -Force | Out-Null
+    '0' | Set-Content -LiteralPath $fakeGitCounter -Encoding ascii
+    @"
+@echo off
+set /p COUNT=<"$fakeGitCounter"
+set /a COUNT+=1
+>"$fakeGitCounter" echo %COUNT%
+if %COUNT% LSS 3 (
+  >&2 echo fatal: unable to access remote: TLS connect error: unexpected eof while reading
+  exit /b 128
+)
+echo recovered
+exit /b 0
+"@ | Set-Content -LiteralPath (Join-Path $fakeGitRoot 'git.cmd') -Encoding ascii
+
+    $savedPath = $env:PATH
+    $savedProxyResolver = ${function:Get-CurrentSystemGitProxyUri}
+    try {
+        $env:PATH = "$fakeGitRoot;$savedPath"
+        Set-Item Function:Get-CurrentSystemGitProxyUri -Value { return $null }
+        $retryResult = Invoke-GitCapture -Repository $testRoot -Arguments @('network-probe') -NetworkRetryDelaysSeconds @(0, 0)
+    } finally {
+        $env:PATH = $savedPath
+        Set-Item Function:Get-CurrentSystemGitProxyUri -Value $savedProxyResolver
+    }
+    if ($retryResult.Text -ne 'recovered' -or $retryResult.NetworkRetryCount -ne 2) {
+        throw 'Transient Git network failure did not recover after two bounded retries.'
+    }
+    if ([int](Get-Content -LiteralPath $fakeGitCounter -Raw) -ne 3) {
+        throw 'Transient Git retry fixture did not execute exactly three attempts.'
     }
 
     $cleanAhead = New-BareTopology 'clean-ahead'

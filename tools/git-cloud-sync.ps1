@@ -82,7 +82,14 @@ function Invoke-GitCapture {
         [Parameter(Mandatory = $true)]
         [string[]]$Arguments,
 
-        [int[]]$AllowedExitCodes = @(0)
+        [int[]]$AllowedExitCodes = @(0),
+
+        # Task Scheduler does not restart a task merely because a completed
+        # wscript action returned a non-zero process code.  Keep transient
+        # remote transport recovery inside the Git operation instead.  The
+        # bounded backoff is long enough to bridge a short proxy/TLS flap but
+        # does not retry authentication, policy, or repository-state errors.
+        [int[]]$NetworkRetryDelaysSeconds = @(30, 120, 300, 900)
     )
 
     $savedPreference = $ErrorActionPreference
@@ -95,6 +102,7 @@ function Invoke-GitCapture {
     $hadGcmInteractive = Test-Path Env:GCM_INTERACTIVE
     $savedGcmInteractive = $env:GCM_INTERACTIVE
     $usedSystemProxy = $false
+    $networkRetryCount = 0
 
     try {
         $ErrorActionPreference = 'Continue'
@@ -105,18 +113,35 @@ function Invoke-GitCapture {
         # credential prompt.
         $env:GIT_TERMINAL_PROMPT = '0'
         $env:GCM_INTERACTIVE = 'Never'
-        $output = @(& git -C $Repository @Arguments 2>&1)
-        $exitCode = $LASTEXITCODE
-        $directText = (($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
-        if ($AllowedExitCodes -notcontains $exitCode -and (Test-GitNetworkFailureText -Text $directText)) {
-            # Git for Windows does not automatically consume the current WinINet
-            # proxy. Retry with the live user setting without persisting a port in
-            # Git config; this follows proxy changes made by the network client.
-            $systemProxy = Get-CurrentSystemGitProxyUri
-            if ($systemProxy) {
-                $output = @(& git -c "http.proxy=$systemProxy" -C $Repository @Arguments 2>&1)
-                $exitCode = $LASTEXITCODE
-                $usedSystemProxy = $true
+        while ($true) {
+            $output = @(& git -C $Repository @Arguments 2>&1)
+            $exitCode = $LASTEXITCODE
+            $directText = (($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+            if ($AllowedExitCodes -notcontains $exitCode -and (Test-GitNetworkFailureText -Text $directText)) {
+                # Git for Windows does not automatically consume the current
+                # WinINet proxy. Try the live user setting without persisting a
+                # local proxy port in Git config.
+                $systemProxy = Get-CurrentSystemGitProxyUri
+                if ($systemProxy) {
+                    $output = @(& git -c "http.proxy=$systemProxy" -C $Repository @Arguments 2>&1)
+                    $exitCode = $LASTEXITCODE
+                    $usedSystemProxy = $true
+                }
+            }
+
+            $attemptText = (($output | ForEach-Object { [string]$_ }) -join [Environment]::NewLine).Trim()
+            $isTransientNetworkFailure = (
+                $AllowedExitCodes -notcontains $exitCode -and
+                (Test-GitNetworkFailureText -Text $attemptText)
+            )
+            if (-not $isTransientNetworkFailure -or $networkRetryCount -ge $NetworkRetryDelaysSeconds.Count) {
+                break
+            }
+
+            $delaySeconds = [Math]::Max(0, [int]$NetworkRetryDelaysSeconds[$networkRetryCount])
+            $networkRetryCount++
+            if ($delaySeconds -gt 0) {
+                Start-Sleep -Seconds $delaySeconds
             }
         }
     } finally {
@@ -150,6 +175,7 @@ function Invoke-GitCapture {
         Lines    = $output
         Text     = $text
         UsedSystemProxy = $usedSystemProxy
+        NetworkRetryCount = $networkRetryCount
     }
 }
 

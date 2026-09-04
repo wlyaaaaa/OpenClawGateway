@@ -13,12 +13,6 @@ function New-TestSettings {
 
     return [ordered]@{
         schema = 'openclaw_gateway.private_backup_settings.v1'
-        codex_memory = [ordered]@{
-            source_root = Join-Path $Root 'codex\source'
-            snapshot_root = Join-Path $Root 'codex\snapshot'
-            cloud_repo = Join-Path $Root 'codex\cloud-repo'
-            log_file = Join-Path $Root 'codex\logs\backup.log'
-        }
         gemini_memory = [ordered]@{
             source_root = Join-Path $Root 'gemini\source'
             snapshot_root = Join-Path $Root 'gemini\snapshot'
@@ -80,7 +74,6 @@ function Assert-SettingsFailure {
 }
 
 $requiredKeys = @{
-    codex_memory = @('source_root', 'snapshot_root', 'cloud_repo', 'log_file')
     gemini_memory = @('source_root', 'snapshot_root', 'hot_snapshot_root', 'cloud_repo', 'log_file')
     claude_memory = @('source_root', 'snapshot_root', 'hot_snapshot_root', 'cloud_repo', 'log_file')
     openclaw = @('config_root', 'workspace_root', 'snapshot_root', 'hot_snapshot_root', 'cloud_repo', 'log_file')
@@ -113,20 +106,20 @@ try {
     $overrideSettings = New-TestSettings -Root (Join-Path $testRoot 'override')
     Write-TestSettings -Settings $overrideSettings -Path $overridePath
     $env:OPENCLAW_PRIVATE_BACKUP_SETTINGS = $overridePath
-    $overrideResolved = Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $testRoot 'missing-default.json') -Group 'codex_memory'
-    if ([string]$overrideResolved.source_root -ne [string]$overrideSettings.codex_memory.source_root) {
+    $overrideResolved = Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $testRoot 'missing-default.json') -Group 'gemini_memory'
+    if ([string]$overrideResolved.source_root -ne [string]$overrideSettings.gemini_memory.source_root) {
         throw 'OPENCLAW_PRIVATE_BACKUP_SETTINGS did not override the default settings file.'
     }
     Remove-Item -Path Env:OPENCLAW_PRIVATE_BACKUP_SETTINGS -ErrorAction SilentlyContinue
 
     Assert-SettingsFailure {
-        Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $testRoot 'missing.json') -Group 'codex_memory'
+        Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $testRoot 'missing.json') -Group 'gemini_memory'
     } 'settings_file'
 
     $malformedPath = Join-Path $testRoot 'malformed.json'
     [System.IO.File]::WriteAllText($malformedPath, '{ not json', [System.Text.UTF8Encoding]::new($false))
     Assert-SettingsFailure {
-        Get-PrivateBackupSettings -DefaultSettingsPath $malformedPath -Group 'codex_memory'
+        Get-PrivateBackupSettings -DefaultSettingsPath $malformedPath -Group 'gemini_memory'
     } 'settings_json'
 
     $badSchemaPath = Join-Path $testRoot 'bad-schema.json'
@@ -134,33 +127,28 @@ try {
     $badSchema.schema = 'wrong-schema'
     Write-TestSettings -Settings $badSchema -Path $badSchemaPath
     Assert-SettingsFailure {
-        Get-PrivateBackupSettings -DefaultSettingsPath $badSchemaPath -Group 'codex_memory'
+        Get-PrivateBackupSettings -DefaultSettingsPath $badSchemaPath -Group 'gemini_memory'
     } 'schema'
 
     $missingKeyPath = Join-Path $testRoot 'missing-key.json'
     $missingKey = New-TestSettings -Root $testRoot
-    $missingKey.codex_memory.Remove('cloud_repo') | Out-Null
+    $missingKey.gemini_memory.Remove('cloud_repo') | Out-Null
     Write-TestSettings -Settings $missingKey -Path $missingKeyPath
     Assert-SettingsFailure {
-        Get-PrivateBackupSettings -DefaultSettingsPath $missingKeyPath -Group 'codex_memory'
-    } 'codex_memory.cloud_repo'
+        Get-PrivateBackupSettings -DefaultSettingsPath $missingKeyPath -Group 'gemini_memory'
+    } 'gemini_memory.cloud_repo'
 
     $privateMarker = 'private-value-must-not-appear'
     $relativePath = Join-Path $testRoot 'relative-key.json'
     $relativeKey = New-TestSettings -Root $testRoot
-    $relativeKey.codex_memory.cloud_repo = "$privateMarker\relative-repository"
+    $relativeKey.gemini_memory.cloud_repo = "$privateMarker\relative-repository"
     Write-TestSettings -Settings $relativeKey -Path $relativePath
     Assert-SettingsFailure {
-        Get-PrivateBackupSettings -DefaultSettingsPath $relativePath -Group 'codex_memory'
-    } 'codex_memory.cloud_repo' $privateMarker
+        Get-PrivateBackupSettings -DefaultSettingsPath $relativePath -Group 'gemini_memory'
+    } 'gemini_memory.cloud_repo' $privateMarker
 
     $effectsRoot = Join-Path $testRoot 'side-effects-must-not-exist'
     $scriptChecks = @(
-        [PSCustomObject]@{
-            Group = 'codex_memory'
-            Script = 'backup-codex-memory.ps1'
-            Arguments = @('-DryRun', '-ManifestPath', (Join-Path $testRoot 'codex-manifest.json'))
-        },
         [PSCustomObject]@{
             Group = 'gemini_memory'
             Script = 'backup-gemini-memory.ps1'

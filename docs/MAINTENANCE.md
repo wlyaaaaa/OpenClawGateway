@@ -65,11 +65,11 @@ pwsh -NoProfile -File .\tools\backup-config.ps1 -Json
 
 当前是 3 个 Windows 计划任务承载 4 个消费者：
 
-- `Codex Memory Backup`：20:05 与 22:05，运行 Codex 小型可读状态备份；隐藏包装器传播真实脚本退出码。
+- `Codex Memory Backup`：20:05 与 22:05，由独立 `codex-memory` Owner（负责人）运行 Codex 小型可读状态备份；本仓库不实现或注册它。
 - `Gemini Memory Backup`：20:10 与 22:10，运行 Gemini 小型可读状态备份并传播退出码。
 - `OpenClaw Memory Backup`：20:20 与 22:20；先运行 Claude 项目记忆备份，再运行 OpenClaw 配置/工作区备份。即使前段失败，后段仍会尝试；两段结束后优先传播 Claude 的非零结果，否则传播 OpenClaw 结果。
 
-因此 `OpenClaw Memory Backup` 非零只能说明共享链至少一段失败，不能仅凭计划任务结果判断是哪一个消费者；需要查看两段各自的脱敏日志。当前改造后的真实计划任务尚未重新运行。
+因此 `OpenClaw Memory Backup` 非零只能说明共享链至少一段失败，不能仅凭计划任务结果判断是哪一个消费者；需要查看两段各自的脱敏日志。三项任务的任务结果只是各自最近一次运行回执，不能跨 Owner（负责人）相互代替。
 
 ## 恢复演练
 
