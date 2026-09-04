@@ -4,16 +4,19 @@
 #  记忆含本项目运维上下文（路径/模型/安全态等，非原始密钥），
 #  备份到私有本地时间戳目录并保留最近 N 份；不写入公开仓库工作树。
 #  由计划任务「OpenClaw Memory Backup」在晚间 20:20 + 22:20 各跑一次。
-#  用法：powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\backup-memory.ps1
+#  用法：powershell -ExecutionPolicy Bypass -File .\tools\backup-memory.ps1
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$src       = Join-Path $env:USERPROFILE ".claude\projects"
-$root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\claude"
-$hotRoot   = "G:\80_Backup\ControlPlane\AIMemory\Claude"
-$cloudRepo = "E:\Projects\Backups\claude-memory"   # 私有云备份仓库 wlyaaaaa/claude-memory
+. (Join-Path $PSScriptRoot 'private-backup-settings.ps1')
+$settings = Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $PSScriptRoot 'private-backup.local.json') -Group 'claude_memory'
+
+$src       = $settings.source_root
+$root      = $settings.snapshot_root
+$hotRoot   = $settings.hot_snapshot_root
+$cloudRepo = $settings.cloud_repo
 $keep      = 30
-$log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-memory.log"
+$log       = $settings.log_file
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
 . (Join-Path $PSScriptRoot 'g-hot-snapshot.ps1')
 
@@ -26,7 +29,7 @@ function Log([string]$m) {
 }
 
 Log "=== Memory Backup — start ==="
-if (-not (Test-Path $src)) { Log "[ERROR] Claude projects 目录不存在: $src"; exit 1 }
+if (-not (Test-Path $src)) { Log '[ERROR] Claude projects source directory does not exist.'; exit 1 }
 
 $memoryDirs = Get-ChildItem -LiteralPath $src -Directory |
     ForEach-Object {
@@ -38,7 +41,7 @@ $memoryDirs = Get-ChildItem -LiteralPath $src -Directory |
             }
         }
     }
-if (-not $memoryDirs) { Log "[ERROR] 未找到任何 Claude project memory 目录: $src"; exit 1 }
+if (-not $memoryDirs) { Log '[ERROR] No Claude project memory directories were found.'; exit 1 }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $dst = Join-Path $root $stamp
@@ -98,14 +101,14 @@ if (Test-Path (Join-Path $cloudRepo '.git')) {
         # 即使本轮内容无变化，也检查并补推历史上遗留的 ahead commit。
         $sync = Invoke-VerifiedGitRemoteSync -Repository $cloudRepo -Remote 'origin' -Branch $branch
         $verb = if ($sync.Pushed) { '已推送' } else { '已是最新' }
-        Log "[OK] 云备份$verb，远端 OID 回读一致 (private: wlyaaaaa/claude-memory)"
+        Log "[OK] 云备份$verb，远端 OID 回读一致（private backup repository）"
     } catch {
         Log "[ERROR] 云备份失败（本地快照已成功，任务返回失败以触发重试）: $_"
         throw
     }
 } else {
-    Log "[ERROR] 云备份仓库未初始化（$cloudRepo）"
-    throw "Cloud backup repo not initialized: $cloudRepo"
+    Log '[ERROR] 云备份仓库未初始化'
+    throw 'Cloud backup repository is not initialized.'
 }
 
 Log "=== done (本地 $($dirs.Count) 份) ==="

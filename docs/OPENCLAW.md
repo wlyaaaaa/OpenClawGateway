@@ -1,148 +1,67 @@
-# OpenClaw 个人智能体网关 — 运维手册（脱敏版）
+# 架构与运行边界
 
-> 本仓库只收录**运维脚本与文档**。所有密钥/令牌一律不入库，实际凭据保存在本机
-> `C:\Users\<USER>\.openclaw\` 下。文中出现的 `<...>`
-> 均为占位符。
+## 产品角色
 
-| 项目 | 值 |
-|------|----|
-| OpenClaw 版本 | v2026.6.10（npm 全局安装，stable 通道周更） |
-| 网关端口 | 18789（仅 loopback 绑定） |
-| 公网入口 | Tailscale Funnel（按需开启） → `http://127.0.0.1:18789` |
-| LLM 供应端 | 阿里云百炼 DashScope/MaaS（OpenAI 兼容端点），默认 `qwen3.7-plus`；另注册 `preview` / `qwen3-max-2026-01-23` |
-| 配置文件 | `C:\Users\<USER>\.openclaw\openclaw.json` |
-| 密钥库 | `C:\Users\<USER>\.openclaw\auth-profiles.json`（含 `agents\main\agent\` 副本） |
-| 启动入口 | `OpenClaw Gateway` 计划任务 direct-node，参数含 `--max-old-space-size=1536` |
+OpenClawGateway 是 OpenClaw 在 Windows 上的公开脱敏运维层。OpenClaw 自己拥有会话、模型、渠道、工具与官方 Gateway CLI；本仓库补充用户可读状态、Windows 常驻核对、心跳、人工受控更新、官方归档包装和 CodeG/Cline 接入。
 
----
-
-## 1. 架构总览
-
-```
-互联网 ──HTTPS──> Tailscale Funnel ──proxy──> 127.0.0.1:18789
-                                                  │
-                                          OpenClaw Gateway (Node.js)
-                                          ├─ Control UI / Auth(password)
-                                          ├─ Agent Engine (DashScope/Qwen)
-                                          └─ Channel Router
-                                             ├─ Telegram Bot
-                                             ├─ Feishu(飞书)
-                                             └─ Google Chat
+```text
+消息渠道
+  └─> OpenClaw Gateway（loopback）
+        ├─> 本地模型
+        ├─> 已配置的远程 Provider
+        └─> 本地工具 / MCP
+              └─> 结果回原渠道
 ```
 
-OpenClaw（昵称“小龙虾”）是常驻后台的个人智能体网关，统一接收 Telegram / 飞书 /
-Google Chat 消息，驱动 Qwen 大模型完成任务，并可调用本机 Cline CLI 等工具。
+## 生命周期
 
-### 1.1 委托 Cline 省 token（主脑 + 本地手）
-对于多文件编码、脚本调试、浏览器自动化这类重活，OpenClaw 主脑
-**不自己逐行读写整个代码库**，而是经 bash 委托本地 **Cline CLI**（在本地做 diffs-only 改动）：
-```bash
-cline -c "<目标仓库>" "<一句话任务>"
-```
-> Cline 用其 `providers.json` 里配置的模型（当前与主脑同为 `qwen3.7-plus`），
-> **不要加 `-m`**（会覆盖配置导致出错）。省 token 的关键是：文件级改动在 Cline 本地完成，
-> 不把整库内容读进主脑上下文。
-主脑只下达任务、读回摘要、向用户汇报，**不把整个代码库读进上下文** —— 这是省 token 的关键。
-委托规则写在工作区 `TOOLS.md`，Cline 全局规范在 `~/Documents/Cline/Rules/`。
+`tools/_common.ps1` 是脚本侧唯一 Gateway 生命周期实现：
 
-## 2. 开机自启机制（两条路线，二选一）
+- 健康以 `openclaw health --json --verbose` 的 `ok=true` 且事件循环未降级为准。
+- 监听必须只有一个，并且只能绑定 loopback；非本机监听或多个监听者直接失败。
+- 启动、停止和重启调用官方 `openclaw gateway` 命令。
+- safe restart（安全重启）返回 deferred/coalesced（延迟或合并）时，不在请求进程里死等；后续由独立状态回读验收。
 
-### 2.1 原生方式（推荐，v2026.6.6 内建）
-OpenClaw 2026.6.6 自带服务管理，底层在 Windows 上用计划任务（schtasks）：
-```powershell
-openclaw daemon install     # 安装/注册 "OpenClaw Gateway" 计划任务
-openclaw daemon status      # 查看安装状态 + 连通性探测
-openclaw daemon start|stop|restart
-openclaw daemon uninstall
-```
-`openclaw update` 升级后会自动经此机制重启网关。
+`openclaw_heartbeat.ps1` 只在不健康时启动或安全重启。`openclaw_silent_boot_guardian.ps1` 默认只读；`-Repair` 才重注册，优先走 PCConfig 受控启动器，通用环境走官方 `gateway install`。
 
-### 2.2 自定义静默守护（本仓库 `openclaw_silent_boot_guardian.ps1`）
-在原生任务基础上，把 `OpenClaw Gateway` 任务收敛为**完全静默、开机即起**。本机已接入
-PCConfig Secret Broker 时，guardian 将任务动作和凭据交给受控启动器；未接入时才使用
-仓库内的兼容回退路径：
+## 模型与成本
 
-| 维度 | 设置 | 作用 |
-|------|------|------|
-| 触发器 | `BootTrigger +30s` | 系统引导即启动，**不依赖用户登录** |
-| 身份 | `S4U` LogonType | 免密、无交互桌面、后台运行 |
-| 权限 | `Highest` | 端口绑定 / Tailscale 等特权操作 |
-| 窗口 | PCConfig 受控启动器（任务 `Hidden`）；兼容回退为 `wscript.exe → openclaw_run_hidden.vbs`（windowStyle=0） | 零黑窗闪烁 |
-| 容错 | `RestartOnFailure 3×60s` + `StartWhenAvailable` | 失败自动重启、错过补跑 |
+当前默认模型是本地路线，但远程模型与认证仍存在。以下事情必须分开：
 
-> ⚠️ PCConfig 受控路径与兼容回退都管理**同名任务** `OpenClaw Gateway`。若以后运行
-> `openclaw daemon install` 或 `doctor --fix`，可能覆盖受控注册；PCConfig 受控路径为首选，
-> 本地 VBS/direct-node 逻辑仅用于未迁移环境或灾备。
+1. 默认、fallback（回退）、utility（辅助）与图像模型是不是本地；
+2. `/model` 或已有会话还能否选择远程模型；
+3. cron（定时任务）是否另有模型覆盖；
+4. OpenClaw、环境变量或 Provider 是否仍有远程认证。
 
-重新注册（管理员 PowerShell）：
-```powershell
-powershell -ExecutionPolicy Bypass -File "E:\Projects\Tools\OpenClawGateway\openclaw_silent_boot_guardian.ps1"
-```
+因此本仓库不再提供伪造的“全局 API OFF”。`api.ps1 status` 只读汇总这三个轴；真实变更交给官方 Models CLI，并在变更后重新核对会话、计划任务和路由。
 
-## 3. 心跳看门狗（`openclaw_heartbeat.ps1`）
-计划任务 `OpenClaw Heartbeat` 每 15 分钟探测 `127.0.0.1:18789`；无响应则
-`Stop`/`Start` 网关任务自愈。日志：`C:\Users\<USER>\.openclaw\logs\OpenClawGateway\openclaw_heartbeat.log`。
-（v2026.6.6 已内建进程级 supervisor，此心跳作为外部兜底。）
+## 渠道
 
-## 4. 认证与免登录运行
-- `gateway.auth.mode = "password"`：静态密码保护，无需浏览器 SSO。
-- 本机接入 PCConfig 后，密码由受控启动器在网关子进程内临时注入；User/Machine 持久化环境变量均应为空。未接入 PCConfig 的旧环境才使用 Machine 级环境变量兼容模式。
-- `bind = "loopback"`：仅监听 127.0.0.1，公网仅经 Tailscale Funnel（TLS）暴露。
+当前观测到 Telegram、飞书为 enabled，Google Chat 为 disabled。这只证明配置开关。只有一次真实入站消息、Agent 执行与回发都成功，才能把某个渠道称为端到端通过；本轮没有发送外部消息。
 
-## 5. 成本控制 / 安全模式（重点）
-网关无人值守，需防止自动任务烧 LLM 费用。本仓库提供一键开关：
-```powershell
-# 进入 API 安全模式：备份并清空 DashScope key、保持 IM channel enabled、关 dreaming/自动更新、关 funnel
-powershell -File "E:\Projects\Tools\OpenClawGateway\disable-openclaw-api.ps1"
-# 恢复使用：还原 key、保持 IM channel enabled、重启网关并健康检查
-powershell -File "E:\Projects\Tools\OpenClawGateway\enable-openclaw-api.ps1"
-```
-详见 [SCRIPTS.md](SCRIPTS.md)。安全模式下网关照常开机自启、监听 18789，
-Telegram / 飞书的 `enabled` 长期开关不由 API key 脚本改写；但**任何模型调用因无 key 立即失败 → 零花费**。
+## 更新
 
-## 6. 渠道与命令权限（安全须知）
-- Telegram / 飞书 / Google Chat 通过 `openclaw.json > channels` 配置。
-- **务必收紧白名单**：`allowFrom` 只放自己的用户 ID，切勿使用 `"*"`；
-  `dmPolicy` 不要长期 `open`。
-- `commands.bash/native` 开启意味着聊天可在本机执行命令——仅在可信白名单下启用。
-- 命令所有者限制：`commands.ownerAllowFrom`。
+自动更新任务按设计 disabled。`tools/managed-component.ps1` 提供：
 
-## 7. 手动受控更新
+- `-Status -Json`：只读返回当前版、stable 目标版、版本关系和 Gateway 健康；
+- `-Update -Json`：显式人工动作，依次完成官方备份、前检、官方更新、重新拉起和后验；
+- 版本已改变但后验失败时返回 partial（部分完成），不自动降级。
 
-`OpenClaw Update` 任务保留但默认 **Disabled**。需要更新时手动运行 `.\openclaw_update.ps1`，避免无人审计升级破坏 API 模式、白名单或启动参数。
-- 配置项：`update.auto.enabled`、`update.channel`（`stable|beta|dev`）、`update.checkOnStart`。
-- 查看：`openclaw update status`；执行：`openclaw update --yes`。
-- 生产/常驻建议用 **stable** 通道，避免 beta 引入不稳定。
+“有新版本”不等于“当前运行坏了”。当前 `2026.8.1` 健康，稳定目标 `2026.9.1` 尚未安装。
 
-## 8. 灾难恢复（重装系统后）
-```powershell
-winget install OpenJS.NodeJS.LTS
-npm install -g openclaw
-# 还原 $HOME\.openclaw\ 备份（含 openclaw.json、auth-profiles.json、credentials）
-# 先恢复 PCConfig Secret Broker，再运行 guardian；它会委托受控启动器注册任务
-.\openclaw_silent_boot_guardian.ps1
-```
+## 恢复
 
-## 9. 运维速查
-```powershell
-Test-NetConnection 127.0.0.1 -Port 18789                       # 端口探测
-Get-Content "C:\Users\<USER>\.openclaw\gateway.log" -Tail 50 -Wait
-openclaw daemon status ; openclaw status ; openclaw doctor
-Get-ScheduledTask "OpenClaw Gateway","OpenClaw Heartbeat" | ft TaskName,State
-```
+备份和恢复只使用 OpenClaw 官方归档合同：
 
-## 10. 文件清单
-```
-E:\Projects\Tools\OpenClawGateway\
-├── README.md
-├── openclaw_silent_boot_guardian.ps1   静默开机自启重注册脚本
-├── openclaw_heartbeat.ps1              15 分钟端口看门狗
-├── openclaw_update.ps1                 全局升级 + 重启 + 健康检查
-├── openclaw_run_hidden.vbs             零窗口启动包装器
-├── openclaw_task.xml                   计划任务定义备份
-├── disable-openclaw-api.ps1            进入安全模式(零花费)
-├── enable-openclaw-api.ps1             恢复 API 使用
-├── tools\                              配置助手脚本（模型/提供方/思考/备份/状态）
-└── docs\OPENCLAW.md / USAGE.md / SCRIPTS.md / MAINTENANCE.md / AUDIT.md
-└── logs\                               运行时日志(gitignored)
-```
+- `backup create --verify` 生成带 manifest（清单）的校验归档；
+- `backup verify` 验证归档；
+- `backup restore --target <fresh>` 恢复到全新暂存目录；
+- 暂存完成不等于现役配置已激活，离线激活是另一项明确操作。
+
+这避免了旧脚本直接复制认证文件、内部 SQLite 和凭据目录造成的版本漂移与半恢复。
+
+## 公开边界
+
+公开仓库可以说明产品名、通用命令、loopback 端口、公开 Provider 名与脱敏测试结果；不得保存账号、token、私有 URL、凭据位置全图、原始消息、日志正文或完整恢复材料。
+
+当前 `openclaw doctor --json` 的三条 warning（警告）也按边界解释：两条来自未开放远程节点接入和未启用 device-pair（设备配对）插件，这不是本产品承诺；另一条只说明私人本机配置仍含承载秘密的字段。公开内容门证明这些值没有进入本仓库，但本轮没有跨 Owner 改写私人运行配置。

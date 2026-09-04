@@ -256,3 +256,7 @@ try {
         Remove-Item -LiteralPath $resolvedTest -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
+
+# The final cscript fixture intentionally exits 7. A successful test must not
+# leak that child exit code as this PowerShell script's own process result.
+exit 0

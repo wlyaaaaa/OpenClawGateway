@@ -60,7 +60,7 @@ function Invoke-Status {
         $chRaw = Get-OCConfigValue -Key 'update.channel'
         if ($chRaw) {
             $chTrim = $chRaw.Trim().ToLowerInvariant()
-            if ($chTrim -in @('stable', 'beta', 'dev')) {
+            if ($chTrim -in @('stable', 'beta', 'dev', 'extended-stable')) {
                 $channel = $chTrim
             } elseif ($chTrim) {
                 $channelResolveOk = $false
@@ -224,16 +224,151 @@ function Invoke-Verify {
         $failed += 'gateway_rpc_unavailable'
     }
 
-    foreach ($provider in @('qwen', 'deepseek')) {
-        $modelRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
-            'models', 'list', '--all', '--provider', $provider, '--json'
+    # Read the current model status and catalog. Both are read-only: they neither
+    # send a model request nor change routing, credentials, or gateway state.
+    $modelsStatus = $null
+    try {
+        $modelsRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+            'models', 'status', '--json'
         ) -TimeoutSec 30
-        try {
-            $models = $modelRun.Stdout | ConvertFrom-Json
-            $providerReady = $modelRun.ExitCode -eq 0 -and [int]$models.count -gt 0
-        } catch { $providerReady = $false }
-        if (-not $providerReady) {
-            $failed += "provider_route_missing: $provider"
+        if ($modelsRun.TimedOut -or $modelsRun.ExitCode -ne 0) {
+            throw 'openclaw models status --json failed'
+        }
+        $modelsStatus = $modelsRun.Stdout | ConvertFrom-Json -Depth 40
+        if ($null -eq $modelsStatus) {
+            throw 'openclaw models status --json returned null'
+        }
+    } catch {
+        $failed += 'models_status_unavailable'
+    }
+
+    $modelsDirectory = $null
+    try {
+        $modelsDirectoryRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
+            'models', 'list', '--json'
+        ) -TimeoutSec 30
+        if ($modelsDirectoryRun.TimedOut -or $modelsDirectoryRun.ExitCode -ne 0) {
+            throw 'openclaw models list --json failed'
+        }
+        $modelsDirectory = $modelsDirectoryRun.Stdout | ConvertFrom-Json -Depth 40
+        if ($null -eq $modelsDirectory) {
+            throw 'openclaw models list --json returned null'
+        }
+    } catch {
+        $failed += 'models_directory_unavailable'
+    }
+
+    if ($null -ne $modelsStatus) {
+        $defaultModelProperty = $modelsStatus.PSObject.Properties['defaultModel']
+        $defaultModel = if ($null -ne $defaultModelProperty) {
+            [string]$defaultModelProperty.Value
+        } else {
+            ''
+        }
+        if ([string]::IsNullOrWhiteSpace($defaultModel)) {
+            $failed += 'model_default_missing'
+        }
+
+        $allowed = @()
+        $allowedProperty = $modelsStatus.PSObject.Properties['allowed']
+        if ($null -ne $allowedProperty -and $null -ne $allowedProperty.Value) {
+            $allowed = @(
+                $allowedProperty.Value |
+                    ForEach-Object { [string]$_ } |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            )
+        }
+        if ($allowed.Count -eq 0) {
+            $failed += 'model_allowed_routes_missing'
+        }
+        if (-not [string]::IsNullOrWhiteSpace($defaultModel) -and
+            -not ($allowed -ccontains $defaultModel)) {
+            $failed += "model_default_route_missing: $defaultModel"
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($defaultModel)) {
+            $defaultProvider = ''
+            if ($defaultModel -match '^([^/]+)/') {
+                $defaultProvider = $Matches[1]
+            }
+
+            $localDefault = $false
+            if ($null -ne $modelsDirectory) {
+                $directoryEntries = @()
+                $directoryModelsProperty = $modelsDirectory.PSObject.Properties['models']
+                if ($null -ne $directoryModelsProperty -and $null -ne $directoryModelsProperty.Value) {
+                    $directoryEntries = @($directoryModelsProperty.Value)
+                } elseif ($modelsDirectory -is [Array]) {
+                    $directoryEntries = @($modelsDirectory)
+                } else {
+                    $directoryEntries = @($modelsDirectory)
+                }
+
+                foreach ($directoryEntry in $directoryEntries) {
+                    if ($null -eq $directoryEntry) { continue }
+                    $keyProperty = $directoryEntry.PSObject.Properties['key']
+                    if ($null -eq $keyProperty -or [string]$keyProperty.Value -cne $defaultModel) {
+                        continue
+                    }
+                    $localProperty = $directoryEntry.PSObject.Properties['local']
+                    if ($null -ne $localProperty -and $localProperty.Value -is [bool] -and $localProperty.Value) {
+                        $localDefault = $true
+                    }
+                    break
+                }
+            }
+
+            if (-not $localDefault) {
+                $authProviders = @()
+                $authProperty = $modelsStatus.PSObject.Properties['auth']
+                if ($null -ne $authProperty -and $null -ne $authProperty.Value) {
+                    $providersProperty = $authProperty.Value.PSObject.Properties['providers']
+                    if ($null -ne $providersProperty -and $null -ne $providersProperty.Value) {
+                        $authProviders = @($providersProperty.Value)
+                    }
+                }
+
+                $hasUsableAuth = $false
+                foreach ($providerStatus in $authProviders) {
+                    if ($null -eq $providerStatus) { continue }
+                    $providerProperty = $providerStatus.PSObject.Properties['provider']
+                    $providerName = if ($null -ne $providerProperty) {
+                        [string]$providerProperty.Value
+                    } else {
+                        ''
+                    }
+                    if ($providerName -cne $defaultProvider) { continue }
+
+                    $profileCount = 0
+                    $profilesProperty = $providerStatus.PSObject.Properties['profiles']
+                    if ($null -ne $profilesProperty -and $null -ne $profilesProperty.Value) {
+                        $profileCountProperty = $profilesProperty.Value.PSObject.Properties['count']
+                        if ($null -ne $profileCountProperty) {
+                            try { $profileCount = [int]$profileCountProperty.Value }
+                            catch { $profileCount = 0 }
+                        }
+                    }
+
+                    $effectiveKind = ''
+                    $effectiveProperty = $providerStatus.PSObject.Properties['effective']
+                    if ($null -ne $effectiveProperty -and $null -ne $effectiveProperty.Value) {
+                        $kindProperty = $effectiveProperty.Value.PSObject.Properties['kind']
+                        if ($null -ne $kindProperty) {
+                            $effectiveKind = [string]$kindProperty.Value
+                        }
+                    }
+
+                    if ($profileCount -gt 0 -or $effectiveKind -in @('env', 'profiles', 'oauth', 'token', 'api_key')) {
+                        $hasUsableAuth = $true
+                        break
+                    }
+                }
+
+                if (-not $hasUsableAuth) {
+                    $providerLabel = if ($defaultProvider) { $defaultProvider } else { 'unknown' }
+                    $failed += "default_provider_auth_missing: $providerLabel"
+                }
+            }
         }
     }
 
@@ -323,12 +458,23 @@ function Invoke-Update {
             if ($receipt.overall -eq 'succeeded') { exit 0 } else { exit 1 }
         }
         'ahead' {
-            $receipt.overall = 'succeeded'
             $receipt.installed_version = $previousVersion
-            $receipt.phases.verify = 'passed'
-            $receipt.failed_checks += 'ahead_of_target: current newer than registry target, no downgrade'
+            $receipt.notes += 'ahead_of_target: current newer than registry target, no downgrade'
+            $verifyFailed = @(Invoke-Verify -ExpectedVersion $previousVersion -InstalledVersion $previousVersion)
+            if ($health -ne 'healthy') {
+                $receipt.failed_checks += "health_degraded: $health (no reinstall — update is not repair)"
+                $receipt.notes += "health=$health but no update performed (ahead version)"
+            }
+            $receipt.failed_checks += $verifyFailed
+            if ($health -eq 'healthy' -and $verifyFailed.Count -eq 0) {
+                $receipt.overall = 'succeeded'
+                $receipt.phases.verify = 'passed'
+            } else {
+                $receipt.overall = 'failed'
+                $receipt.phases.verify = 'failed'
+            }
             Write-JsonResult -Data $receipt -ResultPath $ResultPath
-            exit 0
+            if ($receipt.overall -eq 'succeeded') { exit 0 } else { exit 1 }
         }
         'unknown' {
             $receipt.overall = 'failed'
@@ -393,10 +539,18 @@ function Invoke-Update {
     $preRestartPids = @(Get-PortOwningProcessIds -Port $script:OC_PORT)
     try {
         Stop-Gateway
-        $updateRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList @(
-            'update', '--tag', $targetVersion, '--yes', '--json',
-            '--no-restart', '--timeout', '1800'
-        ) -TimeoutSec 10800
+        $updateArguments = if ($channel -eq 'extended-stable') {
+            @(
+                'update', '--channel', 'extended-stable', '--yes', '--json',
+                '--no-restart', '--timeout', '1800'
+            )
+        } else {
+            @(
+                'update', '--tag', $targetVersion, '--yes', '--json',
+                '--no-restart', '--timeout', '1800'
+            )
+        }
+        $updateRun = Invoke-ExternalLines -FilePath 'openclaw' -ArgumentList $updateArguments -TimeoutSec 10800
         if ($updateRun.TimedOut -or $updateRun.ExitCode -ne 0) {
             throw 'official update command failed'
         }
@@ -479,7 +633,7 @@ function Invoke-StatusInternal {
         $chRaw = Get-OCConfigValue -Key 'update.channel'
         if ($chRaw) {
             $chTrim = $chRaw.Trim().ToLowerInvariant()
-            if ($chTrim -in @('stable', 'beta', 'dev')) {
+            if ($chTrim -in @('stable', 'beta', 'dev', 'extended-stable')) {
                 $channel = $chTrim
             } elseif ($chTrim) {
                 $channelResolveOk = $false

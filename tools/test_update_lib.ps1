@@ -30,6 +30,7 @@ Assert-Equal $null (Get-OpenClawVersionToken 'warning only, no version') 'versio
 Assert-Equal 'latest' (ConvertTo-NpmTag 'stable') 'tag-stable'
 Assert-Equal 'beta' (ConvertTo-NpmTag 'beta') 'tag-beta'
 Assert-Equal 'dev' (ConvertTo-NpmTag 'dev') 'tag-dev'
+Assert-Equal 'extended-stable' (ConvertTo-NpmTag 'extended-stable') 'tag-extended-stable'
 Assert-Equal 'latest' (ConvertTo-NpmTag 'unknown') 'tag-default'
 
 # --- Compare-Versions ---
@@ -53,6 +54,7 @@ Assert-Equal $null (Compare-Versions 'not-a-version' '1.2.3') 'cmp-invalid-is-nu
 Assert-Equal 'equal' (Get-VersionRelation '2026.7.1' '2026.7.1' $true $true 'stable' $true) 'rel-equal'
 Assert-Equal 'behind' (Get-VersionRelation '2026.6.8' '2026.7.1' $true $true 'stable' $true) 'rel-behind'
 Assert-Equal 'ahead' (Get-VersionRelation '2026.7.2' '2026.7.1' $true $true 'stable' $true) 'rel-ahead'
+Assert-Equal 'equal' (Get-VersionRelation '2026.7.1' '2026.7.1' $true $true 'extended-stable' $true) 'rel-extended-stable-equal'
 Assert-Equal 'behind' (Get-VersionRelation '2026.7.1' '2026.7.1-2' $true $true 'stable' $true) 'rel-stable-correction-behind'
 Assert-Equal 'unknown' (Get-VersionRelation '2026.7.1' $null $true $false 'stable' $true) 'rel-target-fail'
 Assert-Equal 'unknown' (Get-VersionRelation $null '2026.7.1' $false $true 'stable' $true) 'rel-current-fail'

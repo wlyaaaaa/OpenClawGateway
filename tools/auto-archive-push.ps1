@@ -74,14 +74,10 @@ try {
         $stagedText = (Invoke-GitCapture -Repository $repo -Arguments @(
             'diff', '--cached', '--text', '--', '.', ':(exclude)tools/auto-archive-push.ps1'
         )).Text
-        # 模式拆分拼接，使本文件源码不字面包含历史完整值，同时覆盖常见新泄露形态。
+        # 只保留通用凭据形态；禁止为命中旧事故而保存可重构的真实片段或账号标识。
         $patterns = @(
-            ('8857'+'353244'),
-            ('sk-'+'ws-'),
-            ('wlySecure'+'Claw2026'),
-            ('-----BEGIN '+'PRIVATE KEY-----'),
-            ('AAHswW0'+'qeNXs'),
-            ('Vvul'+'WjvTbSDx'),
+            '(?<!\d)\d{9,12}(?!\d)',
+            '-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----',
             'sk-[A-Za-z0-9_-]{20,}',
             'Authorization:\s*Bearer\s+\S+',
             '"botToken"\s*:\s*"(?!<)',
@@ -95,8 +91,8 @@ try {
         if (Test-GitStagedChanges -Repository $repo) {
             $msg = 'chore: auto-archive ' + (Get-Date -Format 'yyyy-MM-dd HH:mm')
             Invoke-GitCapture -Repository $repo -Arguments @(
-                '-c', 'user.name=吴乐阳',
-                '-c', 'user.email=wlyaaaaa@gmail.com',
+                '-c', 'user.name=OpenClawGateway Auto Archive',
+                '-c', 'user.email=openclawgateway@example.invalid',
                 'commit', '--quiet', '-m', $msg
             ) | Out-Null
             $committed = $true

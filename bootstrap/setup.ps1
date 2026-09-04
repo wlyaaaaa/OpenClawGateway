@@ -1,126 +1,323 @@
 ﻿<#
 .SYNOPSIS
-  从零 / 重装部署 OpenClaw 网关（含本仓库的全部优化）。
+  安全地安装并配置 OpenClaw 网关。
+
 .DESCRIPTION
-  两种模式：
-    -RestoreFrom <备份目录>  ：从 backup-config.ps1 的私有备份**完整恢复**（含密钥，推荐）。
-    （无 -RestoreFrom）       ：用仓库 bootstrap 模板**全新部署**，交互式填入密钥。
-  执行内容：装运行时 → 还原/初始化配置 → 设网关密码 → 注册三个计划任务 → 装 Cline 全局规则。
-.EXAMPLE
-  # 重装后从私有备份完整恢复（最快）
-  powershell -ExecutionPolicy Bypass -File .\bootstrap\setup.ps1 -RestoreFrom "D:\OpenClawBackup\full-20260619-220000"
-.EXAMPLE
-  # 全新机器、无备份
-  powershell -ExecutionPolicy Bypass -File .\bootstrap\setup.ps1
-.NOTES
-  以管理员 PowerShell 运行。
+  公共模板只包含占位符。将其复制到受信任的私有位置并替换全部
+  __REPLACE_WITH_*__ 值后，把已填完的配置副本传给 -ConfigSource。
+  预检失败时，本脚本不会安装软件、写入配置、注册或启动网关。
+
+  模型认证请使用官方 openclaw models auth。恢复请走
+  tools/restore-config.ps1 的全新暂存合同，而不是向本脚本传入恢复目录。
 #>
+[CmdletBinding(SupportsShouldProcess)]
 param(
-    [string]$RestoreFrom,
-    [string]$User = "$env:USERDOMAIN\$env:USERNAME"
+    [string]$ConfigSource,
+    [switch]$RegisterGateway,
+    [Parameter(DontShow)]
+    [switch]$LibraryOnly
 )
+
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path $PSScriptRoot -Parent
-$OC   = Join-Path $env:USERPROFILE '.openclaw'
-function Step($m){ Write-Host "`n=== $m ===" -ForegroundColor Green }
-function Info($m){ Write-Host "  $m" -ForegroundColor DarkGray }
-function Warn($m){ Write-Host "  ! $m" -ForegroundColor Yellow }
+$repo = Split-Path -Path $PSScriptRoot -Parent
+$script:BootstrapWhatIf = $false
 
-# 0. 管理员
-$pr = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if (-not $pr.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) { throw '请以管理员 PowerShell 运行。' }
-
-# 1. 运行时
-Step '1/6 检查运行时 (Node / OpenClaw / Cline)'
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Info '安装 Node.js LTS...'; winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements }
-if (-not (Get-Command openclaw -ErrorAction SilentlyContinue)) { Info '全局安装 openclaw...'; npm install -g openclaw }
-if (-not (Get-Command cline -ErrorAction SilentlyContinue)) { Info '全局安装 cline...'; npm install -g cline }
-Info ('openclaw ' + (& openclaw --version))
-
-# 2. 配置
-Step '2/6 还原 / 初始化配置'
-New-Item -ItemType Directory -Force $OC | Out-Null
-if ($RestoreFrom) {
-    if (-not (Test-Path $RestoreFrom)) { throw "备份目录不存在: $RestoreFrom" }
-    Info "从私有备份完整恢复: $RestoreFrom"
-    Get-ChildItem $RestoreFrom -File | ForEach-Object { Copy-Item $_.FullName (Join-Path $OC $_.Name) -Force }
-    $cred = Join-Path $RestoreFrom 'credentials'
-    if (Test-Path $cred) { Copy-Item $cred (Join-Path $OC 'credentials') -Recurse -Force }
-} else {
-    Info '无备份：用仓库模板初始化（稍后需填密钥）'
-    if (-not (Test-Path (Join-Path $OC 'openclaw.json'))) { & openclaw setup 2>$null | Out-Null }
-    Copy-Item (Join-Path $PSScriptRoot 'openclaw.template.json') (Join-Path $OC 'openclaw.json') -Force
-    Copy-Item (Join-Path $PSScriptRoot 'auth-profiles.template.json') (Join-Path $OC 'auth-profiles.json') -Force
-    Warn '请编辑以下文件，把 <...> 占位符换成真实值：'
-    Warn "  $OC\auth-profiles.json   (DashScope API key)"
-    Warn "  $OC\openclaw.json        (telegram botToken / feishu appSecret / googlechat serviceAccount)"
-    Warn '完成后再继续注册任务（或用 tools\set-api.ps1 填 key）。'
+function Write-Step {
+    param([Parameter(Mandatory)][string]$Message)
+    Write-Host "==> $Message" -ForegroundColor Green
 }
 
-# 3. 网关密码（优先由 PCConfig 受控启动器管理）
-Step '3/6 准备网关凭据'
-$managedLauncher = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawGateway.ps1'
-if (Test-Path -LiteralPath $managedLauncher -PathType Leaf) {
-    Info '检测到 PCConfig 受控启动器；跳过持久化环境变量写入。'
+function Write-Info {
+    param([Parameter(Mandatory)][string]$Message)
+    Write-Host $Message -ForegroundColor DarkGray
 }
-else {
-    $existing = [System.Environment]::GetEnvironmentVariable(
-        'OPENCLAW_GATEWAY_PASSWORD',
-        'Machine'
+
+function Get-RequiredPlaceholderPath {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]$Value,
+        [Parameter(Mandatory)][string]$Path
     )
-    if ($existing) {
-        Info '已存在旧式 Machine 级密码，跳过。'
+
+    if ($Value -is [string]) {
+        if ($Value -match '^__REPLACE_WITH_[A-Z0-9_]+__$') {
+            Write-Output $Path
+        }
+        return
     }
-    else {
-    $sec = Read-Host '输入网关密码 OPENCLAW_GATEWAY_PASSWORD' -AsSecureString
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-    $pw = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-    [System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD',$pw,'Machine')
-        Info '已写入旧式 Machine 级密码。'
+
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $index = 0
+        foreach ($item in $Value) {
+            Get-RequiredPlaceholderPath -Value $item -Path "$Path[$index]"
+            $index++
+        }
+        return
+    }
+
+    if ($Value -is [pscustomobject]) {
+        foreach ($property in $Value.PSObject.Properties) {
+            Get-RequiredPlaceholderPath -Value $property.Value -Path "$Path.$($property.Name)"
+        }
     }
 }
 
-# 4. gateway.cmd 堆上限（若缺失则由 daemon install 生成，再补堆参数）
-Step '4/6 准备 gateway.cmd（服务启动文件）'
-$gw = Join-Path $OC 'gateway.cmd'
-if (-not (Test-Path $gw)) { Info '生成服务文件...'; & openclaw daemon install 2>$null | Out-Null }
-if (Test-Path $gw) {
-    $t = Get-Content $gw -Raw
-    if ($t -notmatch 'max-old-space-size') { (Get-Content $gw) -replace 'node\.exe"', 'node.exe" --max-old-space-size=1536' | Set-Content $gw -Encoding ascii; Info '已加 1536MB 堆上限' }
+function Read-BootstrapJson {
+    param([Parameter(Mandatory)][string]$Path)
+
+    try {
+        return Get-Content -LiteralPath $Path -Raw -Encoding utf8 | ConvertFrom-Json -Depth 100
+    }
+    catch {
+        throw "Bootstrap JSON 无法解析：$([System.IO.Path]::GetFileName($Path))。$($_.Exception.Message)"
+    }
 }
 
-# 5. 注册三个计划任务
-Step '5/6 注册计划任务 (Gateway / Heartbeat / Update)'
-& (Join-Path $repo 'openclaw_silent_boot_guardian.ps1')
-$pr2 = New-ScheduledTaskPrincipal -UserId $User -LogonType S4U -RunLevel Highest
-$hb = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$repo\openclaw_heartbeat.ps1`""
-$hbT = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)
-Register-ScheduledTask 'OpenClaw Heartbeat' -Action $hb -Trigger $hbT -Principal $pr2 -Settings (New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable) -Force | Out-Null
-$up = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$repo\openclaw_update.ps1`""
-$upT = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 4am
-Register-ScheduledTask 'OpenClaw Update' -Action $up -Trigger $upT -Principal $pr2 -Settings (New-ScheduledTaskSettingsSet -Hidden -StartWhenAvailable) -Force | Out-Null
-Disable-ScheduledTask -TaskName 'OpenClaw Update' | Out-Null
-Info 'Gateway/Heartbeat 已注册；OpenClaw Update 已注册但保持 Disabled（按需手动更新）。'
+function Test-BootstrapConfig {
+    [OutputType([string])]
+    param([Parameter(Mandatory)][string]$ConfigSource)
 
-# 6. Cline 全局规则 + 工作区联动 skills
-Step '6/6 安装 Cline 全局规则 + 联动 skills'
-$rulesDst = Join-Path $env:USERPROFILE 'Documents\Cline\Rules'
-New-Item -ItemType Directory -Force $rulesDst | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'cline-rules\openclaw-service.md') $rulesDst -Force
-Info "Cline 全局规则 → $rulesDst"
-# 安装工作区 skills（cline-coding 联动；wechat skill 从私有备份恢复）
-$skillsSrc = Join-Path $PSScriptRoot 'skills'
-$skillsDst = Join-Path $OC 'workspace\skills'
-if (Test-Path $skillsSrc) {
-    New-Item -ItemType Directory -Force $skillsDst | Out-Null
-    Copy-Item "$skillsSrc\*" $skillsDst -Recurse -Force
-    foreach ($s in (Get-ChildItem $skillsSrc -Directory).Name) { & openclaw config set "skills.entries.$s.enabled" true 2>$null | Out-Null }
-    Info "联动 skills → $skillsDst（已启用）"
+    if ([string]::IsNullOrWhiteSpace($ConfigSource) -or -not (Test-Path -LiteralPath $ConfigSource -PathType Leaf)) {
+        throw 'ConfigSource 必须是已填完的私有 openclaw 配置文件。'
+    }
+
+    $sourcePath = (Resolve-Path -LiteralPath $ConfigSource).Path
+    $json = Read-BootstrapJson -Path $sourcePath
+    $placeholderPaths = @(Get-RequiredPlaceholderPath -Value $json -Path '$')
+    if ($placeholderPaths.Count -gt 0) {
+        throw "ConfigSource 仍含必填占位符。请在私有副本中替换后重试：$($placeholderPaths -join ', ')。"
+    }
+
+    return $sourcePath
 }
 
-Step '完成'
-& openclaw config validate 2>&1 | Select-Object -First 3
-Write-Host "`n下一步：" -ForegroundColor Green
-Write-Host "  1) 若用模板部署，先填好 ~/.openclaw 的密钥占位符" -ForegroundColor Gray
-Write-Host "  2) 运行  .\api.ps1 on   点亮机器人" -ForegroundColor Gray
-Write-Host "  3) 运行  .\tools\status.ps1   核对状态" -ForegroundColor Gray
+function Invoke-CriticalExternal {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$FilePath,
+        [string[]]$ArgumentList = @(),
+        [scriptblock]$CommandInvoker,
+        [switch]$RunDuringWhatIf
+    )
+
+    if ($CommandInvoker) {
+        $result = @(& $CommandInvoker $FilePath $ArgumentList)
+        if ($result.Count -ne 1 -or $result[0] -isnot [int]) {
+            throw "$Name 的测试命令注入器必须返回一个整数退出码。"
+        }
+
+        if ([int]$result[0] -ne 0) {
+            throw "$Name 失败，退出码：$($result[0])。"
+        }
+
+        if ($script:BootstrapWhatIf) {
+            Write-Info "[WhatIf] 已模拟：$Name"
+        }
+        return
+    }
+
+    if ($script:BootstrapWhatIf -and -not $RunDuringWhatIf) {
+        Write-Info "[WhatIf] 将执行：$Name"
+        return
+    }
+
+    & $FilePath @ArgumentList
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "$Name 失败，退出码：$exitCode。"
+    }
+}
+
+function Invoke-BootstrapEffect {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][scriptblock]$Action,
+        [scriptblock]$EffectObserver
+    )
+
+    if ($EffectObserver) {
+        & $EffectObserver $Name
+    }
+
+    if ($script:BootstrapWhatIf) {
+        Write-Info "[WhatIf] 将执行副作用：$Name"
+        return
+    }
+
+    & $Action
+}
+
+function Install-BootstrapConfigAtomically {
+    param(
+        [Parameter(Mandatory)][string]$Source,
+        [Parameter(Mandatory)][string]$Destination
+    )
+
+    $sourceFull = [IO.Path]::GetFullPath($Source)
+    $destinationFull = [IO.Path]::GetFullPath($Destination)
+    if ($sourceFull -ieq $destinationFull) {
+        throw 'ConfigSource 不能直接指向正在使用的 openclaw.json。'
+    }
+
+    $directory = Split-Path -Parent $destinationFull
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    $candidate = Join-Path $directory ('.openclaw-bootstrap-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    $hadOriginal = Test-Path -LiteralPath $destinationFull -PathType Leaf
+    $rollback = if ($hadOriginal) {
+        Join-Path $directory ('openclaw.pre-bootstrap-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' + [Guid]::NewGuid().ToString('N') + '.json')
+    }
+    else { $null }
+
+    try {
+        [IO.File]::Copy($sourceFull, $candidate, $true)
+        $null = Read-BootstrapJson -Path $candidate
+        if ($hadOriginal) {
+            [IO.File]::Replace($candidate, $destinationFull, $rollback, $true)
+        }
+        else {
+            [IO.File]::Move($candidate, $destinationFull)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            Remove-Item -LiteralPath $candidate -Force
+        }
+    }
+
+    return [pscustomobject]@{
+        Destination = $destinationFull
+        HadOriginal = $hadOriginal
+        Rollback = $rollback
+    }
+}
+
+function Restore-BootstrapConfigTransaction {
+    param([Parameter(Mandatory)]$Transaction)
+
+    if ($Transaction.HadOriginal -and
+        (Test-Path -LiteralPath $Transaction.Rollback -PathType Leaf)) {
+        Copy-Item -LiteralPath $Transaction.Rollback -Destination $Transaction.Destination -Force
+    }
+    elseif (-not $Transaction.HadOriginal -and
+        (Test-Path -LiteralPath $Transaction.Destination -PathType Leaf)) {
+        Remove-Item -LiteralPath $Transaction.Destination -Force
+    }
+}
+
+function Test-Administrator {
+    $principal = [Security.Principal.WindowsPrincipal]::new(
+        [Security.Principal.WindowsIdentity]::GetCurrent()
+    )
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
+        throw '注册网关需要管理员 PowerShell。'
+    }
+}
+
+function Start-OpenClawBootstrap {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)][string]$ConfigSource,
+        [switch]$RegisterGateway,
+        [Parameter(DontShow)]
+        [scriptblock]$EffectObserver,
+        [Parameter(DontShow)]
+        [scriptblock]$CommandInvoker
+    )
+
+    $previousWhatIf = $script:BootstrapWhatIf
+    $script:BootstrapWhatIf = [bool]$WhatIfPreference
+    try {
+        # 必须是第一个会影响机器状态的步骤之前的预检。
+        $sourcePath = Test-BootstrapConfig -ConfigSource $ConfigSource
+
+        Write-Step '检查运行时'
+        if (-not (Get-Command -Name node -ErrorAction SilentlyContinue)) {
+            Invoke-CriticalExternal -Name 'Node.js 安装' -FilePath 'winget' -ArgumentList @(
+                'install', '-e', '--id', 'OpenJS.NodeJS.LTS',
+                '--accept-source-agreements', '--accept-package-agreements'
+            ) -CommandInvoker $CommandInvoker
+        }
+        if (-not (Get-Command -Name openclaw -ErrorAction SilentlyContinue)) {
+            Invoke-CriticalExternal -Name 'OpenClaw 安装' -FilePath 'npm' -ArgumentList @(
+                'install', '-g', 'openclaw'
+            ) -CommandInvoker $CommandInvoker
+        }
+        Invoke-CriticalExternal -Name 'OpenClaw 版本检查' -FilePath 'openclaw' -ArgumentList @('--version') -CommandInvoker $CommandInvoker -RunDuringWhatIf
+
+        $previousConfigPath = $env:OPENCLAW_CONFIG_PATH
+        try {
+            $env:OPENCLAW_CONFIG_PATH = $sourcePath
+            Invoke-CriticalExternal -Name '候选 OpenClaw 配置校验' -FilePath 'openclaw' -ArgumentList @(
+                'config', 'validate', '--json'
+            ) -CommandInvoker $CommandInvoker -RunDuringWhatIf
+        }
+        finally {
+            if ($null -eq $previousConfigPath) {
+                [Environment]::SetEnvironmentVariable('OPENCLAW_CONFIG_PATH', $null, 'Process')
+            }
+            else {
+                [Environment]::SetEnvironmentVariable('OPENCLAW_CONFIG_PATH', $previousConfigPath, 'Process')
+            }
+        }
+
+        Write-Step '写入已预检的配置'
+        $configRoot = Join-Path $env:USERPROFILE '.openclaw'
+        $destinationPath = Join-Path $configRoot 'openclaw.json'
+        $transaction = Invoke-BootstrapEffect -Name '写入 openclaw.json' -EffectObserver $EffectObserver -Action {
+            Install-BootstrapConfigAtomically -Source $sourcePath -Destination $destinationPath
+        }
+        try {
+            Invoke-CriticalExternal -Name '生效 OpenClaw 配置校验' -FilePath 'openclaw' -ArgumentList @(
+                'config', 'validate', '--json'
+            ) -CommandInvoker $CommandInvoker
+        }
+        catch {
+            if (-not $script:BootstrapWhatIf -and $null -ne $transaction) {
+                Restore-BootstrapConfigTransaction -Transaction $transaction
+            }
+            throw
+        }
+        if (-not $script:BootstrapWhatIf -and $null -ne $transaction -and $transaction.Rollback) {
+            Write-Info "原配置回退副本：$($transaction.Rollback)"
+        }
+
+        if ($RegisterGateway) {
+            Test-Administrator
+            $guardian = Join-Path $repo 'openclaw_silent_boot_guardian.ps1'
+            if (-not (Test-Path -LiteralPath $guardian -PathType Leaf)) {
+                throw '未找到网关注册入口。'
+            }
+
+            Write-Step '注册网关'
+            Invoke-CriticalExternal -Name '网关注册修复' -FilePath $guardian -ArgumentList @('-Repair') -CommandInvoker $CommandInvoker
+        }
+
+        if ($script:BootstrapWhatIf) {
+            Write-Info 'WhatIf 预演完成；没有安装、写入、注册或启动任何组件。'
+        }
+        else {
+            Write-Host 'OpenClaw bootstrap 已完成。' -ForegroundColor Green
+        }
+    }
+    finally {
+        $script:BootstrapWhatIf = $previousWhatIf
+    }
+}
+
+if ($LibraryOnly) {
+    return
+}
+
+if ([string]::IsNullOrWhiteSpace($ConfigSource)) {
+    Write-Error '必须通过 -ConfigSource 提供已填完的私有 openclaw 配置文件。'
+    exit 1
+}
+
+try {
+    Start-OpenClawBootstrap -ConfigSource $ConfigSource -RegisterGateway:$RegisterGateway -WhatIf:$WhatIfPreference
+}
+catch {
+    Write-Error $_
+    exit 1
+}

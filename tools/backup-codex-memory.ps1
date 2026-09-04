@@ -12,11 +12,14 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$src       = Join-Path $env:USERPROFILE ".codex"
-$root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\codex"
-$cloudRepo = "E:\Projects\Backups\codex-memory"   # private repo: wlyaaaaa/codex-memory
+. (Join-Path $PSScriptRoot 'private-backup-settings.ps1')
+$settings = Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $PSScriptRoot 'private-backup.local.json') -Group 'codex_memory'
+
+$src       = $settings.source_root
+$root      = $settings.snapshot_root
+$cloudRepo = $settings.cloud_repo
 $keep      = 30
-$log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-codex-memory.log"
+$log       = $settings.log_file
 
 function Log([string]$m) {
     $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m
@@ -67,7 +70,7 @@ function Add-Files([System.Collections.Generic.List[object]]$files, [string]$bas
 
 function Get-CodexMemoryFiles {
     if (-not (Test-Path -LiteralPath $src)) {
-        throw "Codex directory does not exist: $src"
+        throw 'Codex source directory does not exist.'
     }
 
     $files = [System.Collections.Generic.List[object]]::new()
@@ -119,10 +122,10 @@ function Copy-SelectedFiles($files, [string]$destinationRoot) {
 function Clear-CloudRepo([string]$path) {
     $resolved = (Resolve-Path -LiteralPath $path).Path
     if ($resolved -ne $cloudRepo) {
-        throw "Refusing to clear unexpected cloud repo path: $resolved"
+        throw 'Refusing to clear an unexpected cloud backup repository.'
     }
     if (-not (Test-Path -LiteralPath (Join-Path $resolved '.git'))) {
-        throw "Cloud repo is not initialized: $resolved"
+        throw 'Cloud backup repository is not initialized.'
     }
     Get-ChildItem -LiteralPath $resolved -Force |
         Where-Object { $_.Name -ne '.git' } |
@@ -210,7 +213,7 @@ if (Test-Path -LiteralPath (Join-Path $cloudRepo '.git')) {
             & git -C $cloudRepo add -A 2>$null | Out-Null
             & git -C $cloudRepo commit -m ("codex memory snapshot {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm')) 2>$null | Out-Null
             & git -C $cloudRepo push -u origin main 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { Log "[OK] cloud backup pushed (private: wlyaaaaa/codex-memory)" }
+            if ($LASTEXITCODE -eq 0) { Log '[OK] cloud backup pushed (private backup repository)' }
             else { Log "[WARN] cloud backup push exit code $LASTEXITCODE (local snapshot succeeded)" }
         } else {
             Log "[..] cloud backup unchanged; skipped push"
@@ -221,7 +224,7 @@ if (Test-Path -LiteralPath (Join-Path $cloudRepo '.git')) {
         $ErrorActionPreference = $eapSave
     }
 } else {
-    Log "[..] cloud backup repo not initialized ($cloudRepo); skipped"
+    Log '[..] cloud backup repository not initialized; skipped'
 }
 
 Log "=== done ==="

@@ -139,10 +139,3 @@ function Restart-Gateway {
     }
     Write-Step '网关已重启并通过健康回读。'
 }
-
-# 安全的标量配置写入（经原生 CLI 校验）
-function Set-OCConfig($path, $value) {
-    & openclaw config set $path $value | Out-Null
-    Write-Step "设置 $path = $value"
-}
-function Get-OCConfig($path) { (& openclaw config get $path 2>$null) }

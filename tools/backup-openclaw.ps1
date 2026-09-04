@@ -3,19 +3,22 @@
 # ---------------------------------------------------------------------
 #  config（openclaw.json/auth-profiles.json/config.yml/.env，含密钥）
 #  + workspace（人格/记忆/技能/脚本，排除 node_modules）
-#  → 本地 E:\Projects\Backups\openclaw-backup → 私有仓库 wlyaaaaa/openclaw-backup。
+#  → 配置中的本地快照与私有仓库。
 #  由计划任务每日 20:20 + 22:20 自动跑。**私有仓库，含密钥，切勿公开。**
-#  用法：powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\backup-openclaw.ps1
+#  用法：powershell -ExecutionPolicy Bypass -File .\tools\backup-openclaw.ps1
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$srcCfg = Join-Path $env:USERPROFILE ".openclaw"
-$srcWs  = Join-Path $srcCfg "workspace"
-$root   = Join-Path $srcCfg "memory-backup\openclaw"
-$hotRoot = "G:\80_Backup\ControlPlane\AIMemory\OpenClaw"
-$repo   = "E:\Projects\Backups\openclaw-backup"
+. (Join-Path $PSScriptRoot 'private-backup-settings.ps1')
+$settings = Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $PSScriptRoot 'private-backup.local.json') -Group 'openclaw'
+
+$srcCfg = $settings.config_root
+$srcWs  = $settings.workspace_root
+$root   = $settings.snapshot_root
+$hotRoot = $settings.hot_snapshot_root
+$repo   = $settings.cloud_repo
 $keep   = 30
-$log    = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-openclaw.log"
+$log    = $settings.log_file
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
 . (Join-Path $PSScriptRoot 'g-hot-snapshot.ps1')
 
@@ -28,9 +31,9 @@ function Log([string]$m) {
 }
 
 Log "=== OpenClaw Backup — start ==="
-if (-not (Test-Path (Join-Path $repo '.git'))) { Log "[ERROR] 备份仓库未初始化: $repo"; exit 1 }
-if (-not (Test-Path -LiteralPath $srcCfg -PathType Container)) { Log "[ERROR] 配置目录不存在: $srcCfg"; exit 1 }
-if (-not (Test-Path -LiteralPath $srcWs -PathType Container)) { Log "[ERROR] 工作区目录不存在: $srcWs"; exit 1 }
+if (-not (Test-Path (Join-Path $repo '.git'))) { Log '[ERROR] 备份仓库未初始化'; exit 1 }
+if (-not (Test-Path -LiteralPath $srcCfg -PathType Container)) { Log '[ERROR] 配置目录不存在'; exit 1 }
+if (-not (Test-Path -LiteralPath $srcWs -PathType Container)) { Log '[ERROR] 工作区目录不存在'; exit 1 }
 
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $dst = Join-Path $root $stamp
@@ -100,7 +103,7 @@ try {
     }
     $sync = Invoke-VerifiedGitRemoteSync -Repository $repo -Remote 'origin' -Branch $branch
     $verb = if ($sync.Pushed) { '已推送' } else { '已是最新' }
-    Log "[OK] 私有云备份$verb，远端 OID 回读一致 wlyaaaaa/openclaw-backup"
+    Log "[OK] 私有云备份$verb，远端 OID 回读一致（private backup repository）"
 } catch {
     Log "[ERROR] 私有云备份失败（任务返回失败以触发重试）: $_"
     throw

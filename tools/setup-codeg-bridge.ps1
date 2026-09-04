@@ -10,8 +10,8 @@
 #   - openclaw-bridge 连网关需要网关密码（gateway.auth.mode=password），
 #     缺密码即报 "Authentication required: Call authenticate before creating a session"。
 #
-#  本脚本优先使用 PCConfig 的只读启动器，在子进程内临时注入凭据；
-#  只有未安装该启动器的旧环境才兼容读取机器级环境变量。
+#  本脚本只接受 PCConfig 受控启动器，在子进程内临时注入凭据；
+#  不把网关密码复制到 Cline 配置或命令行。
 #
 #  用法：powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1
 # =====================================================================
@@ -19,16 +19,138 @@ param(
     [string]$ClineSettingsPath = (
         Join-Path $env:USERPROFILE '.cline\data\settings\cline_mcp_settings.json'
     ),
-    [switch]$SkipProbe
+    [switch]$SkipProbe,
+    [string]$ManagedPwshPath = 'C:\Program Files\PowerShell\7\pwsh.exe',
+    [string]$ManagedLauncherPath = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawMcpBridge.ps1',
+    [string]$GatewayUrl = 'http://127.0.0.1:18789'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $clineSettings = $ClineSettingsPath
-$openclawCmd   = Join-Path $env:APPDATA "npm\openclaw.cmd"
-$gatewayUrl    = "http://127.0.0.1:18789"
-$managedPwsh   = 'C:\Program Files\PowerShell\7\pwsh.exe'
-$managedLauncher = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawMcpBridge.ps1'
+$gatewayUrl = $GatewayUrl
+$managedPwsh = $ManagedPwshPath
+$managedLauncher = $ManagedLauncherPath
+
+function ConvertTo-BridgeJson {
+    param([Parameter(Mandatory)]$Value)
+
+    return ($Value | ConvertTo-Json -Depth 64)
+}
+
+function Test-BridgeJsonEqual {
+    param(
+        [Parameter(Mandatory)]$Expected,
+        [Parameter(Mandatory)]$Actual
+    )
+
+    return ((ConvertTo-BridgeJson $Expected) -eq (ConvertTo-BridgeJson $Actual))
+}
+
+function Test-BridgeByteArrayEqual {
+    param(
+        [Parameter(Mandatory)][byte[]]$Expected,
+        [Parameter(Mandatory)][byte[]]$Actual
+    )
+
+    if ($Expected.Length -ne $Actual.Length) {
+        return $false
+    }
+    for ($index = 0; $index -lt $Expected.Length; $index++) {
+        if ($Expected[$index] -ne $Actual[$index]) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Read-ClineConfig {
+    param([Parameter(Mandatory)][string]$Path)
+
+    try {
+        $text = [System.IO.File]::ReadAllText($Path)
+        $config = $text | ConvertFrom-Json
+    }
+    catch {
+        throw "Cline MCP 配置不是可解析的 JSON，未修改原文件: $Path`n$($_.Exception.Message)"
+    }
+
+    if (-not ($config -is [pscustomobject])) {
+        throw "Cline MCP 配置根节点必须是 JSON 对象，未修改原文件: $Path"
+    }
+
+    return $config
+}
+
+function Write-Utf8NoBomAtomically {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][byte[]]$Bytes
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    $tempPath = Join-Path $directory (
+        '.{0}.{1}.tmp' -f [System.IO.Path]::GetFileName($Path), [Guid]::NewGuid().ToString('N')
+    )
+    $replaceBackupPath = "$tempPath.replace.bak"
+    try {
+        [System.IO.File]::WriteAllBytes($tempPath, $Bytes)
+        if (Test-Path -LiteralPath $Path -PathType Leaf) {
+            [System.IO.File]::Replace($tempPath, $Path, $replaceBackupPath)
+        }
+        else {
+            [System.IO.File]::Move($tempPath, $Path)
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $tempPath -PathType Leaf) {
+            Remove-Item -LiteralPath $tempPath -Force
+        }
+        if (Test-Path -LiteralPath $replaceBackupPath -PathType Leaf) {
+            Remove-Item -LiteralPath $replaceBackupPath -Force
+        }
+    }
+}
+
+function New-ClineRecoveryBackup {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][byte[]]$Bytes
+    )
+
+    $backupPath = "$Path.openclaw-bridge.bak"
+    if (Test-Path -LiteralPath $backupPath -PathType Leaf) {
+        return $backupPath
+    }
+
+    try {
+        $stream = [System.IO.File]::Open(
+            $backupPath,
+            [System.IO.FileMode]::CreateNew,
+            [System.IO.FileAccess]::Write,
+            [System.IO.FileShare]::None
+        )
+        try {
+            $stream.Write($Bytes, 0, $Bytes.Length)
+            $stream.Flush($true)
+        }
+        finally {
+            $stream.Dispose()
+        }
+    }
+    catch [System.IO.IOException] {
+        if (-not (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+            throw
+        }
+    }
+
+    return $backupPath
+}
 
 Write-Host "=== setup-codeg-bridge: 配置 openclaw-bridge MCP ==="
 
@@ -37,76 +159,108 @@ $managedMode = (
     (Test-Path -LiteralPath $managedPwsh -PathType Leaf) -and
     (Test-Path -LiteralPath $managedLauncher -PathType Leaf)
 )
-$pw = $null
-if ($managedMode) {
-    Write-Host "[OK] 使用 PCConfig 受控启动器；Cline 配置不保存网关密码。"
-}
-else {
-    $pw = [System.Environment]::GetEnvironmentVariable(
-        'OPENCLAW_GATEWAY_PASSWORD',
-        'Machine'
-    )
-    if ([string]::IsNullOrWhiteSpace($pw)) {
-        Write-Host "[ERROR] 未找到 PCConfig 受控启动器，旧式机器级凭据也不存在。"
-        Write-Host "        先完成 PCConfig Secret Broker 初始化，再重跑本脚本。"
-        exit 1
-    }
-    Write-Host "[WARN] 正在使用旧式机器级环境变量兼容模式。"
-}
-
-# 2) openclaw.cmd 路径检查（旧模式需要；受控启动器自行验证）
-if (-not (Test-Path $openclawCmd)) {
-    Write-Host "[ERROR] 未找到 openclaw.cmd: $openclawCmd（openclaw 是否已全局安装？）"
+if (-not $managedMode) {
+    Write-Host "[ERROR] 未找到 PCConfig 受控启动器。"
+    Write-Host "        先完成 PCConfig Secret Broker 初始化，再重跑本脚本。"
     exit 1
 }
+Write-Host "[OK] 使用 PCConfig 受控启动器；Cline 配置不保存网关密码。"
 
-# 3) 写 openclaw-bridge 到 Cline 生效配置（codeg 检测此文件）
-$bridge = if ($managedMode) {
-    [ordered]@{
-        type = 'stdio'
-        command = $managedPwsh
-        args = @(
-            '-NoLogo',
-            '-NoProfile',
-            '-NonInteractive',
-            '-ExecutionPolicy',
-            'Bypass',
-            '-File',
-            $managedLauncher
-        )
-        env = [ordered]@{
-            OPENCLAW_URL = $gatewayUrl
-        }
+# 2) 写 openclaw-bridge 到 Cline 生效配置（codeg 检测此文件）
+$bridge = [ordered]@{
+    type = 'stdio'
+    command = $managedPwsh
+    args = @(
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $managedLauncher
+    )
+    env = [ordered]@{
+        OPENCLAW_URL = $gatewayUrl
+    }
+}
+
+$settingsExists = Test-Path -LiteralPath $clineSettings
+if ($settingsExists -and -not (Test-Path -LiteralPath $clineSettings -PathType Leaf)) {
+    throw "Cline MCP 配置路径不是普通文件: $clineSettings"
+}
+
+$existingBytes = $null
+if ($settingsExists) {
+    $existingBytes = [System.IO.File]::ReadAllBytes($clineSettings)
+    $cfg = Read-ClineConfig -Path $clineSettings
+}
+else {
+    $cfg = [pscustomobject]@{}
+}
+
+if ($null -ne $cfg.PSObject.Properties['mcpServers']) {
+    $mcpServers = $cfg.PSObject.Properties['mcpServers'].Value
+    if (-not ($mcpServers -is [pscustomobject])) {
+        throw "Cline MCP 配置的 mcpServers 必须是 JSON 对象，未修改原文件: $clineSettings"
     }
 }
 else {
-    [ordered]@{
-        type = 'stdio'
-        command = $openclawCmd
-        args = @('mcp', 'serve')
-        env = [ordered]@{
-            OPENCLAW_URL = $gatewayUrl
-            OPENCLAW_GATEWAY_PASSWORD = $pw
-        }
-    }
+    $mcpServers = [pscustomobject]@{}
+    $cfg | Add-Member -MemberType NoteProperty -Name 'mcpServers' -Value $mcpServers
 }
-$cfg = [ordered]@{
-    mcpServers = [ordered]@{
-        'openclaw-bridge' = $bridge
-    }
+$mcpServers | Add-Member -MemberType NoteProperty -Name 'openclaw-bridge' -Value $bridge -Force
+
+$json = ConvertTo-BridgeJson $cfg
+try {
+    $candidateConfig = $json | ConvertFrom-Json
 }
-$dir = Split-Path -Parent $clineSettings
-if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-$json = $cfg | ConvertTo-Json -Depth 8
-[System.IO.File]::WriteAllText($clineSettings, $json, (New-Object System.Text.UTF8Encoding($false)))
-$writeMessage = if ($managedMode) {
-    "[OK] 已写入无明文凭据的 openclaw-bridge 到:"
+catch {
+    throw "生成的 Cline MCP 候选 JSON 无法解析，未修改原文件: $($_.Exception.Message)"
 }
-else {
-    "[OK] 已写入旧式兼容 openclaw-bridge 到:"
+if (-not ($candidateConfig -is [pscustomobject])) {
+    throw '生成的 Cline MCP 候选 JSON 根节点不是对象，未修改原文件。'
 }
+$candidateMcpServers = $candidateConfig.PSObject.Properties['mcpServers'].Value
+if (-not ($candidateMcpServers -is [pscustomobject]) -or
+    $null -eq $candidateMcpServers.PSObject.Properties['openclaw-bridge'] -or
+    -not (Test-BridgeJsonEqual $bridge $candidateMcpServers.PSObject.Properties['openclaw-bridge'].Value)) {
+    throw '生成的 Cline MCP 候选 JSON 未包含精确的 openclaw-bridge，未修改原文件。'
+}
+
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+$candidateBytes = $utf8NoBom.GetBytes($json)
+$backupPath = $null
+if ($settingsExists) {
+    $backupPath = New-ClineRecoveryBackup -Path $clineSettings -Bytes $existingBytes
+}
+
+$didWrite = -not $settingsExists -or -not (Test-BridgeByteArrayEqual -Expected $existingBytes -Actual $candidateBytes)
+if ($didWrite) {
+    Write-Utf8NoBomAtomically -Path $clineSettings -Bytes $candidateBytes
+}
+
+$writtenBytes = [System.IO.File]::ReadAllBytes($clineSettings)
+if ($writtenBytes.Length -ge 3 -and
+    $writtenBytes[0] -eq 0xEF -and $writtenBytes[1] -eq 0xBB -and $writtenBytes[2] -eq 0xBF) {
+    throw "Cline MCP 配置写入后不是 UTF-8 无 BOM: $clineSettings"
+}
+$writtenConfig = Read-ClineConfig -Path $clineSettings
+if (-not (Test-BridgeJsonEqual $candidateConfig $writtenConfig)) {
+    throw "Cline MCP 配置写后回读未保留原有键或其他 MCP 服务: $clineSettings"
+}
+$writtenMcpServers = $writtenConfig.PSObject.Properties['mcpServers'].Value
+if (-not ($writtenMcpServers -is [pscustomobject]) -or
+    $null -eq $writtenMcpServers.PSObject.Properties['openclaw-bridge'] -or
+    -not (Test-BridgeJsonEqual $bridge $writtenMcpServers.PSObject.Properties['openclaw-bridge'].Value)) {
+    throw "Cline MCP 配置写后回读缺少精确的 openclaw-bridge: $clineSettings"
+}
+
+$writeMessage = "[OK] 已确认无明文凭据的 openclaw-bridge 到:"
 Write-Host $writeMessage
 Write-Host "     $clineSettings"
+if ($backupPath) {
+    Write-Host "     恢复备份: $backupPath"
+}
 
 # 4) 自检：网关端口是否在线（openclaw mcp serve 是常驻 stdio 进程，不便在脚本里
 #    可靠地驱动收尾；这里做轻量端口探活，完整认证可用下方手动命令验证）
@@ -123,21 +277,16 @@ if (-not $SkipProbe) {
         Write-Host "[..] 端口探活跳过: $_"
     }
 }
-if ($managedMode) {
-    Write-Host "    完整认证由受控启动器在子进程内完成，不需要手工粘贴密码。"
-}
-else {
-    Write-Host "    当前为旧式兼容模式；建议完成 PCConfig Secret Broker 迁移。"
-}
+Write-Host "    完整认证由受控启动器在子进程内完成，不需要手工粘贴密码。"
 
 # 5) 收尾步骤（在 codeg 里）
 Write-Host ""
-$pw = $null
 Write-Host "===== 在 codeg 里完成接入 ====="
 Write-Host "1. codeg → 设置 → MCP → 点【刷新】（应出现 openclaw-bridge）"
 Write-Host "2. 把 openclaw-bridge 的【启用应用】勾给 Cline（或 Claude Code）"
 Write-Host "3. 用【Cline】这个 agent 发任务（切勿用「OpenClaw」ACP agent —— 被 codeg bug 堵死）"
-Write-Host "4. Cline 即可调用 OpenClaw 对话工具：conversations_list / conversation_get /"
+Write-Host "4. 等 MCP initialize 与 tools/list 实际通过后，Cline 才可调用对话工具："
+Write-Host "   conversations_list / conversation_get /"
 Write-Host "   messages_read / messages_send / events_poll / events_wait /"
 Write-Host "   attachments_fetch / permissions_list_open / permissions_respond"
 Write-Host ""

@@ -1,369 +1,150 @@
 ﻿<#
 .SYNOPSIS
-  OpenClaw Gateway — Silent Boot Guardian (Self-Heal Script)
-  Auto-audits and re-registers the "OpenClaw Gateway" Windows Scheduled Task
-  to achieve 100% silent, headless, auto-start on system boot.
-
+  核对 OpenClaw Gateway 的 Windows 常驻状态；显式 -Repair 时才修复注册。
 .DESCRIPTION
-  This script fixes the following critical issues in the default OpenClaw
-  scheduled-task registration:
+  现役机器优先把凭据注入和计划任务注册交给 PCConfig。没有 PCConfig 受控
+  启动器时，只使用 OpenClaw 官方 gateway install，不再生成仓库内 VBS、
+  写机器级密码环境变量或手工拼装 Node 计划任务。
 
-    1. Trigger:  LogonTrigger → BootTrigger  (runs at SYSTEM STARTUP, not user logon)
-    2. Principal: InteractiveToken → Password/S4U  (runs hidden in background)
-    3. RunLevel:  Limited → Highest  (admin privileges for Tailscale/network ops)
-    4. Window:    Visible CMD → Fully Hidden  (via VBScript wrapper + task setting)
-
-  It also:
-    - Creates a companion VBScript launcher (openclaw_run_hidden.vbs) to guarantee
-      zero window flash even on older Windows builds.
-    - Sets RestartOnFailure with 60-second interval, up to 3 retries.
-    - Logs all actions to .\logs\openclaw_guardian.log
-
-.NOTES
-  Author:  Antigravity Agent (auto-generated)
-  Date:    2026-06-16
-  Version: 1.0.0
-  Run as:  Administrator (elevated PowerShell)
+  默认是只读检查。-Repair 会重注册网关，要求管理员权限，并在完成后通过
+  Gateway RPC 和计划任务状态回读验收。
 #>
-
+[CmdletBinding()]
 param(
-    [string]$TaskName       = 'OpenClaw Gateway',
-    [string]$GatewayCmdPath = (Join-Path $env:USERPROFILE '.openclaw\gateway.cmd'),
-    [string]$User           = "$env:USERDOMAIN\$env:USERNAME",
-    [int]   $RestartDelaySeconds = 60,
-    [int]   $MaxRestartCount     = 3
+    [string]$TaskName = 'OpenClaw Gateway',
+    [int]$Port = 18789,
+    [switch]$Repair,
+    [switch]$Json,
+    [string]$PcConfigRoot = $(
+        if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('PCCONFIG_ROOT', 'User'))) {
+            'E:\PCConfig'
+        }
+        else {
+            [Environment]::GetEnvironmentVariable('PCCONFIG_ROOT', 'User')
+        }
+    ),
+    [string]$ManagedLauncher = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawGateway.ps1',
+    [string]$PwshPath = 'C:\Program Files\PowerShell\7\pwsh.exe'
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$scriptRoot = $PSScriptRoot
-if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
-if (-not $scriptRoot) { $scriptRoot = 'E:\Projects\Tools\OpenClawGateway' }
 
-# ── Logging ──────────────────────────────────────────────────────────────
-$logDir = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'logs\OpenClawGateway'
-if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force $logDir | Out-Null }
-$logFile = Join-Path $logDir 'openclaw_guardian.log'
-function Log([string]$msg) {
-    $line = "{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $msg
-    $line | Out-File -FilePath $logFile -Append -Encoding utf8
-    Write-Host $line
+function Test-Administrator {
+    $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+    return $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
 }
 
-# ── Elevation check ─────────────────────────────────────────────────────
-$principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-if (-not $principal.IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)) {
-    Log "[ERROR] This script MUST run in an elevated (Administrator) PowerShell."
-    throw 'Elevation required. Right-click PowerShell → Run as Administrator.'
+function Invoke-OpenClawJson([string[]]$Arguments) {
+    $raw = & openclaw @Arguments 2>$null | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        throw "openclaw $($Arguments -join ' ') failed."
+    }
+    try { return $raw | ConvertFrom-Json -Depth 30 }
+    catch { throw "openclaw $($Arguments -join ' ') did not return valid JSON." }
 }
 
-Log "═══════════════════════════════════════════════════════════"
-Log "  OpenClaw Silent Boot Guardian — Self-Heal Run"
-Log "═══════════════════════════════════════════════════════════"
+function Get-TaskPosture {
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($null -eq $task) {
+        return [ordered]@{
+            exists = $false
+            state = 'Missing'
+            hidden = $false
+            run_level = $null
+            logon_type = $null
+            boot_trigger = $false
+            managed_launcher = $false
+        }
+    }
 
-# ── Preferred owner: PCConfig managed secret launcher ───────────────────
-$pcconfigRoot = [Environment]::GetEnvironmentVariable(
-    'PCCONFIG_ROOT',
-    'User'
-)
-if ([string]::IsNullOrWhiteSpace($pcconfigRoot)) {
-    $pcconfigRoot = 'E:\PCConfig'
+    $action = @($task.Actions) | Select-Object -First 1
+    $triggerClasses = @($task.Triggers | ForEach-Object { $_.CimClass.CimClassName })
+    return [ordered]@{
+        exists = $true
+        state = [string]$task.State
+        hidden = $task.Settings.Hidden -eq $true
+        run_level = [string]$task.Principal.RunLevel
+        logon_type = [string]$task.Principal.LogonType
+        boot_trigger = $triggerClasses -contains 'MSFT_TaskBootTrigger'
+        managed_launcher = $null -ne $action -and
+            [string]$action.Execute -ieq $PwshPath -and
+            [string]$action.Arguments -match [Regex]::Escape($ManagedLauncher)
+    }
 }
-$pcconfigInstaller = Join-Path $pcconfigRoot 'tools\Install-SecretBroker.ps1'
-$pcconfigRegistry = Join-Path $pcconfigRoot 'registries\secret_broker.json'
-$managedLauncher = 'C:\ProgramData\PCConfig\SecretBroker\Start-OpenClawGateway.ps1'
-$pwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
-if ((Test-Path -LiteralPath $managedLauncher -PathType Leaf) -and
+
+$pcconfigInstaller = Join-Path $PcConfigRoot 'tools\Install-SecretBroker.ps1'
+$pcconfigRegistry = Join-Path $PcConfigRoot 'registries\secret_broker.json'
+$managedAvailable =
+    (Test-Path -LiteralPath $ManagedLauncher -PathType Leaf) -and
     (Test-Path -LiteralPath $pcconfigInstaller -PathType Leaf) -and
     (Test-Path -LiteralPath $pcconfigRegistry -PathType Leaf) -and
-    (Test-Path -LiteralPath $pwsh -PathType Leaf)) {
-    Log "[INFO] 检测到 PCConfig 受控启动器；凭据与任务由 PCConfig 管理。"
-    Log "[INFO] 本脚本不会读取、提升或重新写入网关密码环境变量。"
-    $managedRaw = & $pwsh `
-        -NoLogo `
-        -NoProfile `
-        -NonInteractive `
-        -ExecutionPolicy Bypass `
-        -File $pcconfigInstaller `
-        -RegistryPath $pcconfigRegistry `
-        -SkipShortcut `
-        -ConfigureOpenClawGatewayTask `
-        -ScrubOpenClawGatewayEnvironment `
-        -Json
-    if ($LASTEXITCODE -ne 0) {
-        throw 'PCConfig managed gateway registration failed.'
+    (Test-Path -LiteralPath $PwshPath -PathType Leaf)
+
+$repairRoute = 'none'
+if ($Repair) {
+    if (-not (Test-Administrator)) {
+        throw 'Repair requires an elevated Administrator PowerShell.'
     }
-    $managed = $managedRaw | ConvertFrom-Json -Depth 10
-    if ($managed.status -ne 'pass' -or
-        $managed.openclaw_gateway_task_configured -ne $true -or
-        $managed.openclaw_gateway_environment_scrubbed -ne $true) {
-        throw 'PCConfig managed gateway verification failed.'
+
+    if ($managedAvailable) {
+        $managedRaw = & $PwshPath `
+            -NoLogo `
+            -NoProfile `
+            -NonInteractive `
+            -ExecutionPolicy Bypass `
+            -File $pcconfigInstaller `
+            -RegistryPath $pcconfigRegistry `
+            -SkipShortcut `
+            -ConfigureOpenClawGatewayTask `
+            -ScrubOpenClawGatewayEnvironment `
+            -Json
+        if ($LASTEXITCODE -ne 0) { throw 'PCConfig managed gateway registration failed.' }
+        $managed = $managedRaw | ConvertFrom-Json -Depth 20
+        if ($managed.status -ne 'pass' -or
+            $managed.openclaw_gateway_task_configured -ne $true -or
+            $managed.openclaw_gateway_environment_scrubbed -ne $true) {
+            throw 'PCConfig managed gateway verification failed.'
+        }
+        $repairRoute = 'pcconfig_managed'
     }
-    $managedTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-    $managedAction = @($managedTask.Actions) | Select-Object -First 1
-    $managedTriggerClasses = @(
-        $managedTask.Triggers | ForEach-Object { $_.CimClass.CimClassName }
-    )
-    if ($managedTask.Settings.Hidden -ne $true -or
-        $managedTask.Principal.RunLevel -ne 'Highest' -or
-        $managedTask.Principal.LogonType -ne 'S4U' -or
-        $managedTriggerClasses -notcontains 'MSFT_TaskBootTrigger' -or
-        $managedAction.Execute -ine $pwsh -or
-        $managedAction.Arguments -notmatch [Regex]::Escape($managedLauncher)) {
-        throw 'PCConfig managed gateway hidden-task verification failed.'
+    else {
+        $null = Invoke-OpenClawJson @('gateway', 'install', '--force', '--port', [string]$Port, '--json')
+        $repairRoute = 'openclaw_official'
     }
-    Log "[OK] PCConfig 受控启动任务已注册（Boot/S4U/Highest/Hidden），持久化网关密码环境变量已清理。"
-    Log "Script completed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+}
+
+$gateway = Invoke-OpenClawJson @('gateway', 'status', '--require-rpc', '--json')
+$rpcOk = $gateway.rpc.ok -eq $true
+$taskPosture = Get-TaskPosture
+$taskHealthy = $taskPosture.exists -and $taskPosture.state -ne 'Disabled'
+
+$result = [ordered]@{
+    schema = 'openclaw_gateway.windows_residency.v1'
+    checked_at_utc = [DateTime]::UtcNow.ToString('o')
+    repair_requested = [bool]$Repair
+    repair_route = $repairRoute
+    managed_route_available = [bool]$managedAvailable
+    gateway_rpc_ok = [bool]$rpcOk
+    gateway_version = [string]$gateway.rpc.version
+    port = $Port
+    task = $taskPosture
+    healthy = [bool]($rpcOk -and $taskHealthy)
+}
+
+if (-not $result.healthy) {
+    if ($Json) { $result | ConvertTo-Json -Depth 12 -Compress }
+    throw 'OpenClaw Gateway did not pass RPC and scheduled-task readback.'
+}
+
+if ($Json) {
+    $result | ConvertTo-Json -Depth 12 -Compress
     exit 0
 }
 
-# ── Step 1: Validate gateway.cmd exists ──────────────────────────────────
-if (-not (Test-Path $GatewayCmdPath)) {
-    Log "[ERROR] Gateway CMD not found at: $GatewayCmdPath"
-    throw "gateway.cmd not found. Install/repair OpenClaw first."
-}
-Log "[OK] gateway.cmd found: $GatewayCmdPath"
-
-# ── Step 2: Validate OPENCLAW_GATEWAY_PASSWORD env var ───────────────────
-$pwMachine = [System.Environment]::GetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD', 'Machine')
-$pwUser    = [System.Environment]::GetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD', 'User')
-$pwCurrent = $env:OPENCLAW_GATEWAY_PASSWORD
-
-if ($pwMachine) {
-    Log "[OK] OPENCLAW_GATEWAY_PASSWORD set at Machine level"
-} elseif ($pwUser) {
-    Log "[WARN] OPENCLAW_GATEWAY_PASSWORD set at User level only (may not be available at boot for SYSTEM-context tasks)"
-    Log "[FIX] Promoting to Machine-level environment variable..."
-    [System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD', $pwUser, 'Machine')
-    Log "[OK] Promoted OPENCLAW_GATEWAY_PASSWORD to Machine level"
-} elseif ($pwCurrent) {
-    Log "[WARN] OPENCLAW_GATEWAY_PASSWORD only in current session, not persistent"
-    Log "[FIX] Setting at Machine level..."
-    [System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD', $pwCurrent, 'Machine')
-    Log "[OK] Set OPENCLAW_GATEWAY_PASSWORD at Machine level"
-} else {
-    Log "[ERROR] OPENCLAW_GATEWAY_PASSWORD is NOT set anywhere!"
-    Log "[INFO] Set it manually: [System.Environment]::SetEnvironmentVariable('OPENCLAW_GATEWAY_PASSWORD','<your-pw>','Machine')"
-    throw "Missing OPENCLAW_GATEWAY_PASSWORD. Cannot proceed."
-}
-
-# ── Step 2b: Set OpenClaw service environment variables at Machine level ─
-Log "--- Setting OpenClaw service environment variables at Machine level ---"
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_MARKER', 'openclaw', 'Machine')
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_KIND', 'gateway', 'Machine')
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_VERSION', '2026.6.8', 'Machine')
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_WINDOWS_TASK_NAME', 'OpenClaw Gateway', 'Machine')
-[System.Environment]::SetEnvironmentVariable('OPENCLAW_SERVICE_MANAGED_ENV_KEYS', 'GEMINI_API_KEY,GOOGLE_API_KEY,HIMALAYA_EMAIL,HIMALAYA_IMAP_HOST,HIMALAYA_IMAP_PORT,HIMALAYA_PASSWORD,HIMALAYA_SMTP_HOST,HIMALAYA_SMTP_PORT', 'Machine')
-Log "[OK] Set all OpenClaw service environment variables at Machine level"
-
-# ── Step 3: Validate openclaw.json auth config ───────────────────────────
-$configPath = Join-Path (Join-Path $env:USERPROFILE '.openclaw') 'openclaw.json'
-if (Test-Path $configPath) {
-    $config = Get-Content $configPath -Raw | ConvertFrom-Json
-    $authMode = $config.gateway.auth.mode
-    if ($authMode -eq 'password') {
-        Log "[OK] gateway.auth.mode = 'password' (headless-compatible)"
-    } else {
-        Log "[WARN] gateway.auth.mode = '$authMode' (may require browser login!)"
-        Log "[INFO] Consider changing to 'password' mode for fully headless operation."
-    }
-
-    # Check Telegram channel
-    if ($config.channels.telegram.enabled -eq $true) {
-        Log "[OK] Telegram channel enabled with botToken configured"
-        if ($config.channels.telegram.allowFrom) {
-            Log "[OK] Telegram allowFrom whitelist configured"
-        }
-    } else {
-        Log "[WARN] Telegram channel not enabled"
-    }
-} else {
-    Log "[WARN] openclaw.json not found at $configPath"
-}
-
-# ── Step 4: Create hidden VBScript launcher ──────────────────────────────
-$vbsPath = Join-Path $scriptRoot 'openclaw_run_hidden.vbs'
-$vbsContent = @"
-' ============================================================
-'  OpenClaw Gateway — Silent Hidden Launcher
-'  Called by the "OpenClaw Gateway" scheduled task at boot.
-'  Runs gateway.cmd with ZERO window visibility (windowStyle=0).
-'
-'  This VBScript wrapper is essential because:
-'    1. schtasks /CREATE cannot set "Hidden" window style directly.
-'    2. Even with task settings set to "Hidden", CMD windows can flash.
-'    3. WScript.Shell.Run with windowStyle=0 guarantees NO window at all.
-'
-'  Generated by: OpenClaw Silent Boot Guardian (Antigravity Agent)
-'  Date: $(Get-Date -Format 'yyyy-MM-dd')
-' ============================================================
-Dim shell
-Set shell = CreateObject("WScript.Shell")
-
-' Set environment so the child process inherits system env vars
-' (Task Scheduler in SYSTEM context loads Machine-level env vars automatically)
-
-' Run gateway.cmd completely hidden (windowStyle=0), do NOT wait for exit (False)
-shell.Run """$($GatewayCmdPath.Replace('\','\\'))""", 0, True
-
-Set shell = Nothing
-"@
-
-Set-Content -Path $vbsPath -Value $vbsContent -Encoding ASCII
-Log "[OK] Created hidden launcher: $vbsPath"
-
-# ── Step 5: Audit existing scheduled task ────────────────────────────────
-Log "--- Auditing existing scheduled task '$TaskName' ---"
-$existingTask = $null
-try {
-    $existingTask = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-    Log "[FOUND] Task '$TaskName' exists"
-
-    # Check trigger type
-    $triggers = $existingTask.Triggers
-    $hasBootTrigger = $false
-    $hasLogonTrigger = $false
-    foreach ($t in $triggers) {
-        if ($t -is [Microsoft.Management.Infrastructure.CimInstance]) {
-            $triggerType = $t.CimClass.CimClassName
-            if ($triggerType -match 'Boot') { $hasBootTrigger = $true }
-            if ($triggerType -match 'Logon') { $hasLogonTrigger = $true }
-            Log "  Trigger: $triggerType"
-        }
-    }
-
-    # Check principal
-    $princ = $existingTask.Principal
-    Log "  LogonType: $($princ.LogonType)"
-    Log "  RunLevel:  $($princ.RunLevel)"
-    Log "  UserId:    $($princ.UserId)"
-
-    # Determine if re-registration is needed
-    $needsFix = $false
-    $reasons = @()
-
-    if (-not $hasBootTrigger) {
-        $needsFix = $true
-        $reasons += "Missing BootTrigger (currently using LogonTrigger only)"
-    }
-    if ($princ.LogonType -eq 'InteractiveToken' -or $princ.LogonType -eq 'Interactive') {
-        $needsFix = $true
-        $reasons += "LogonType is InteractiveToken (will show CMD window)"
-    }
-    if ($princ.RunLevel -ne 'Highest') {
-        $needsFix = $true
-        $reasons += "RunLevel is not Highest"
-    }
-
-    if ($needsFix) {
-        Log "[ISSUES DETECTED] Task needs re-registration:"
-        foreach ($r in $reasons) { Log "  - $r" }
-    } else {
-        Log "[OK] Task configuration looks correct"
-    }
-} catch {
-    Log "[NOT FOUND] Task '$TaskName' does not exist — will create from scratch"
-}
-
-# ── Step 6: (Re-)Register the scheduled task ─────────────────────────────
-Log "--- (Re-)Registering task '$TaskName' for SILENT BOOT startup ---"
-
-# Remove existing task if present
-try {
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-    Log "[OK] Removed old task registration"
-} catch {
-    Log "[INFO] No existing task to remove"
-}
-
-# Action: run node.exe directly (runs hidden in Session 0/S4U)
-$nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
-$nodePath = if ($nodeCommand) { $nodeCommand.Source } else { 'C:\Program Files\nodejs\node.exe' }
-$openclawEntry = Join-Path $env:APPDATA 'npm\node_modules\openclaw\dist\index.js'
-$action = New-ScheduledTaskAction `
-    -Execute $nodePath `
-    -Argument "--max-old-space-size=1536 `"$openclawEntry`" gateway --port 18789" `
-    -WorkingDirectory (Split-Path $GatewayCmdPath -Parent)
-
-# Trigger: BOOT trigger (runs before any user logs in)
-$trigger = New-ScheduledTaskTrigger -AtStartup
-
-# Add a 30-second delay to let networking/Tailscale come up
-$trigger.Delay = 'PT30S'
-
-# Principal: run as the user with highest privilege, using S4U (no password prompt, no window)
-# S4U (Service-for-User) allows the task to run with stored credentials
-# without requiring the user to be logged in.
-$taskPrincipal = New-ScheduledTaskPrincipal `
-    -UserId $User `
-    -LogonType 'S4U' `
-    -RunLevel 'Highest'
-
-# Settings
-$settings = New-ScheduledTaskSettingsSet `
-    -AllowStartIfOnBatteries `
-    -DontStopIfGoingOnBatteries `
-    -StartWhenAvailable `
-    -MultipleInstances IgnoreNew `
-    -ExecutionTimeLimit ([TimeSpan]::Zero) `
-    -RestartCount $MaxRestartCount `
-    -RestartInterval (New-TimeSpan -Seconds $RestartDelaySeconds) `
-    -Hidden
-
-# Register
-$task = Register-ScheduledTask `
-    -TaskName $TaskName `
-    -Action $action `
-    -Trigger $trigger `
-    -Principal $taskPrincipal `
-    -Settings $settings `
-    -Description "OpenClaw Gateway — auto-start at boot, fully silent, highest privilege. Self-healed by Antigravity Agent on $(Get-Date -Format 'yyyy-MM-dd')." `
-    -Force
-
-Log "[OK] Task '$TaskName' registered successfully"
-Log "  Trigger:   AtStartup (with 30s delay)"
-Log "  LogonType: S4U (no interactive window, no stored password needed)"
-Log "  RunLevel:  Highest"
-Log "  Hidden:    Yes"
-Log "  Restart:   On failure, ${RestartDelaySeconds}s interval, max $MaxRestartCount retries"
-Log "  Action:    node.exe directly with --max-old-space-size=1536"
-
-# ── Step 7: Verify the registration ─────────────────────────────────────
-Log "--- Verifying registration ---"
-$verified = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($verified) {
-    $vTrigger = $verified.Triggers[0]
-    $vPrinc   = $verified.Principal
-    $vSet     = $verified.Settings
-
-    $checks = @(
-        @{ Name="Trigger is BootTrigger";  Pass=($vTrigger.CimClass.CimClassName -match 'Boot') },
-        @{ Name="RunLevel is Highest";     Pass=($vPrinc.RunLevel -eq 'Highest') },
-        @{ Name="LogonType is S4U";        Pass=($vPrinc.LogonType -eq 'S4U') },
-        @{ Name="Hidden setting enabled";  Pass=($vSet.Hidden -eq $true) },
-        @{ Name="No execution time limit"; Pass=($vSet.ExecutionTimeLimit -eq 'PT0S' -or $vSet.ExecutionTimeLimit -eq [TimeSpan]::Zero) },
-        @{ Name="RestartOnFailure set";    Pass=($vSet.RestartCount -ge 1) }
-    )
-
-    $allPass = $true
-    foreach ($c in $checks) {
-        if ($c.Pass) { $icon = "[PASS]" } else { $icon = "[FAIL]"; $allPass = $false }
-        Log "  $icon $($c.Name): $($c.Pass)"
-    }
-
-    if ($allPass) {
-        Log ""
-        Log "================================================================"
-        Log "  [ALL PASS] OpenClaw Gateway is now configured"
-        Log "  for 100% SILENT, HEADLESS, AUTO-START at system boot!"
-        Log "================================================================"
-    } else {
-        Log ""
-        Log "[WARN] Some checks did not pass. Manual review recommended."
-    }
-} else {
-    Log "[ERROR] Task verification failed — task not found after registration!"
-}
-
-Log ""
-Log "Script completed at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-Log "Log file: $logFile"
+Write-Host 'OpenClaw Gateway 常驻状态' -ForegroundColor Green
+Write-Host ("  RPC            {0}" -f $(if ($rpcOk) { 'ok' } else { 'failed' }))
+Write-Host ("  版本           {0}" -f $result.gateway_version)
+Write-Host ("  计划任务       {0}" -f $taskPosture.state)
+Write-Host ("  注册路线       {0}" -f $(if ($taskPosture.managed_launcher) { 'PCConfig 受控启动器' } else { 'OpenClaw 官方任务' }))
+Write-Host ("  本次修复       {0}" -f $repairRoute)

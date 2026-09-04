@@ -1,160 +1,42 @@
-# 脚本使用指南
+# 脚本清单
 
-所有脚本均为 **PowerShell**，编码 UTF-8 (BOM)。涉及计划任务/系统配置的请以
-**管理员**身份运行。脚本分两类：根目录的「服务生命周期」脚本，`tools\` 下的「配置助手」脚本。
+## 用户入口
 
-> [!NOTE]
-> 关于大模型 API Key 凭据管理的详细细节、SQLite 同步原理解析以及安全模式的深度使用指南，请参阅独立的专题文档：[API 凭据管理与安全模式指南](API_KEY_MANAGEMENT.md)。
+| 文件 | 作用 | 默认是否写运行态 |
+|---|---|---:|
+| `api.ps1 status` | 汇总默认模型、远程路线和认证来源 | 否 |
+| `tools/status.ps1` | 查看版本、Gateway、任务、模型、渠道和 Funnel | 否 |
+| `openclaw_silent_boot_guardian.ps1` | 核对 Windows 常驻；`-Repair` 才重注册 | 否 |
+| `openclaw_heartbeat.ps1` | 不健康时使用官方生命周期恢复 | 可能 |
+| `openclaw_update.ps1` | 显式人工受控更新 | 是 |
+| `tools/backup-config.ps1` | 创建官方校验归档 | 是，写私人归档 |
+| `tools/restore-config.ps1` | 恢复到全新暂存目录 | 是，只写目标目录 |
+| `tools/setup-codeg-bridge.ps1` | 保留现有配置并 upsert Cline MCP bridge | 是，写指定 Cline 配置 |
 
-```
-E:\Projects\Tools\OpenClawGateway\
-├── api.ps1                             # ★快速：一键开关 API（on/off/toggle/status）
-├── set-api.ps1                         # ★快速：全局设 key/模型/网站 + 提供方档案
-├── openclaw_silent_boot_guardian.ps1   # 服务：重注册静默开机自启任务
-├── openclaw_heartbeat.ps1              # 服务：端口看门狗（由计划任务调用）
-├── openclaw_update.ps1                 # 服务：通道感知手动更新（任务默认 Disabled）
-├── openclaw_run_hidden.vbs             # 服务：零窗口启动包装器
-├── disable-openclaw-api.ps1            # 引擎：进入安全模式（零花费，被 api.ps1 调用）
-├── enable-openclaw-api.ps1            # 引擎：恢复 API 使用（被 api.ps1 调用）
-└── tools\
-    ├── switch-model.ps1                # 切换默认模型 + 思考等级
-    ├── set-thinking.ps1                # 设置思考等级与显示
-    ├── backup-config.ps1               # 备份全部配置与密钥
-    ├── restore-config.ps1              # 从备份恢复
-    ├── status.ps1                      # 一屏状态面板
-    ├── build_docs_pdf.py               # 文档导出 PDF（白色纯绿主题）
-    ├── restart_gateway.ps1             # 服务：异步安全重启网关（脱离进程树防自杀卡死）
-    ├── managed-component.ps1           # AI 路由 adapter：结构化 status/update JSON
-    └── _update_lib.ps1                 # 共享库：版本解析、状态机、端口探活、ResultPath
-```
+## 内部实现
 
----
+- `tools/_common.ps1`：官方 Gateway 生命周期和 health 合同；
+- `tools/_update_lib.ps1`：版本关系、外部进程超时与 JSON 原子写入；
+- `tools/managed-component.ps1`：受控更新状态机；
+- `tools/g-hot-snapshot.ps1`、`tools/git-cloud-sync.ps1`：现有私人备份消费者使用的热备与 Git 同步组件；
+- `tools/private-backup-settings.ps1`：为仍有计划任务消费者的私人备份脚本读取被 Git 忽略的本机路径配置；公开源码不保存私库坐标或磁盘拓扑；
+- `tools/auto-archive-push.ps1`：公开仓库自动归档消费者，运行前执行公开内容门。
 
-## ★ 两个最常用快速脚本（根目录）
+## 已退役入口
 
-### `api.ps1` — 一键开关 API
-```powershell
-.\api.ps1 on        # 开启（还原 key + 保持 IM 渠道开关 + funnel，机器人可用）
-.\api.ps1 off       # 关闭（清空 key + 保持 IM 渠道开关 + 关 funnel，零花费 API 安全模式）
-.\api.ps1           # 不带参数＝自动判别并翻转
-.\api.ps1 status    # 查看当前状态 + 完整面板
-```
-是 `enable/disable-openclaw-api.ps1` 的快捷前端，自动判别当前状态，记不住状态也不怕。
+旧 `set-api.ps1`、`enable/disable-openclaw-api.ps1`、`switch-model.ps1`、`set-thinking.ps1`、`apply-*`、`register_*`、内部 SQLite 凭据写入器、机器专用 WeFlow 查询脚本、仓库内生成的启动 VBS、失效的 Cline bootstrap 资产、无消费者 PDF/BOM/restart 工具和无关 `public/` 站点已经删除。
 
-### `set-api.ps1` — 快速全局设 key / 模型 / 网站
-> provider 固定 `openai`；**`api=openai-completions` 命门不改**（改成 responses 会让工具/技能 400 失败）。只动 key、模型、baseUrl。
-```powershell
-.\set-api.ps1 -Show                                          # 看当前
-.\set-api.ps1 -Model qwen3.7-plus                              # 只换模型
-.\set-api.ps1 -BaseUrl "https://xxx/v1" -Key "sk-xxx" -Model m -Test   # 全换 + 连通性自测
-```
-**提供方档案（优化）**：多家厂商配置存名一键切换，免反复输入。
-```powershell
-.\set-api.ps1 -Save dashscope        # 把当前配置存为档案 dashscope
-.\set-api.ps1 -Profile deepseek      # 一键切到 deepseek 档案
-.\set-api.ps1 -List                  # 列出所有档案
-```
-档案存于 `C:\Users\<USER>\.openclaw\.secrets\providers.json`。改动前自动备份，`-Test` 改后自测。
+删除原因不是“代码旧”本身，而是它们分别存在错误成本结论、跨 Owner 覆盖、占位凭据写入、私人数据残件、机器绑定或完全无当前消费者。Git 历史仍保留过去实现，不为旧测试继续维护废层。
 
----
+## 测试
 
-## 一、服务生命周期脚本（根目录）
+`tools/test-*.ps1` 使用隔离夹具。重点合同：
 
-### `openclaw_silent_boot_guardian.ps1`
-重注册 `OpenClaw Gateway` 计划任务为 **BootTrigger+30s / S4U / Highest / Hidden**，
-实现无登录、无黑窗的开机自启。已接入 PCConfig Secret Broker 时由受控启动器接管任务动作
-和凭据注入；未迁移环境才回退到仓库内的隐藏 VBS/direct-node 路径。装机或自启失效时运行一次。
-```powershell
-powershell -ExecutionPolicy Bypass -File .\openclaw_silent_boot_guardian.ps1
-```
-
-### `openclaw_update.ps1`
-人工入口是 `tools/managed-component.ps1 -Update -Json` 的薄包装；AI 与人工更新共用同一套
-backup→preflight→npm update→wait→verify 状态机，不再维护第二份更新实现。
-- 更新前自动调用 `tools/backup-config.ps1 -Json`，备份失败立即停止。
-- 按 stable→`@latest`、beta→`@beta`、dev→`@dev` 解析目标版本；目标未知不更新。
-- 探活要求端口连续 Listen ≥10s（最长约 120s），并验证关键配置和 `OpenClaw Update` 仍为 Disabled。
-- 大版本后若卡在插件迁移：先排查 owner 日志；**不要**默认 `doctor --fix`。
-默认不自动运行；`OpenClaw Update` 任务保留但 Disabled，需要时手动（必须管理员）：
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\openclaw_update.ps1
-```
-
-### `openclaw_heartbeat.ps1`
-探测 `127.0.0.1:18789`，无响应则重启网关任务。由 `OpenClaw Heartbeat` 任务每 15 分钟调用。
-
-### `disable-openclaw-api.ps1` / `enable-openclaw-api.ps1`（成本安全模式）
-| 脚本 | 作用 |
-|------|------|
-| **disable** | 备份并**清空 DashScope key** → 零 LLM 花费；保持 Telegram/飞书 enabled 不变；关 dreaming/自动更新；收敛白名单；关 Funnel |
-| **enable**  | 还原 key；保持 Telegram/飞书 enabled 不变；stable 通道；开 Funnel；重启 + 健康检查 |
-```powershell
-powershell -File .\disable-openclaw-api.ps1     # 闲时省钱
-powershell -File .\enable-openclaw-api.ps1      # 要用时点亮
-```
-> 备份位于 `C:\Users\<USER>\.openclaw\secrets-backup\`。API key 脚本永远不改 Telegram/飞书的 `enabled` 开关；IM 是否在线由长期配置决定。
-
----
-
-## 二、配置助手脚本（`tools\`）
-
-### `switch-model.ps1` — 切换默认模型
-```powershell
-.\tools\switch-model.ps1 -List                                   # 查看当前与已注册模型
-.\tools\switch-model.ps1 -Model qwen3.7-plus -Thinking max
-.\tools\switch-model.ps1 -Model qwen4-max-2026-12-01 -Register   # 新模型上线：登记+切换
-```
-| 参数 | 说明 |
-|------|------|
-| `-Model <id>` | 目标模型（裸 id 默认归到 `openai/`；也可写全 `provider/id`） |
-| `-Thinking <off..max>` | 顺带设思考等级 |
-| `-Register` | 模型未登记时，自动加入 provider 的模型表 |
-| `-List` / `-NoRestart` | 仅查看 / 改完不立即重启 |
-
-> 更换提供方/端点/Key 用根目录的 **`set-api.ps1`**（见上方“两个最常用快速脚本”）。
-
-### `set-thinking.ps1` — 思考等级
-```powershell
-.\tools\set-thinking.ps1 -Level max               # 最强推理（默认）
-.\tools\set-thinking.ps1 -Level low -Reasoning off
-```
-
-### `backup-config.ps1` / `restore-config.ps1` — 备份恢复
-```powershell
-.\tools\backup-config.ps1                          # 打包配置+密钥到 secrets-backup\full-<时间戳>
-.\tools\restore-config.ps1 -Latest                 # 从最新备份恢复（恢复前另存 .pre-restore）
-```
-
-### `status.ps1` — 状态面板
-```powershell
-.\tools\status.ps1     # 版本/网关/任务/模型/思考/API模式/渠道/Funnel 一屏看全
-```
-
-### `backup-memory.ps1` — 备份 Claude 记忆（本地 + G + 私有云）
-```powershell
-.\tools\backup-memory.ps1     # ①本地轮换快照 C:\Users\<USER>\.openclaw\memory-backup\claude\<时间戳>\（留30份）
-                              # ②G:\80_Backup\ControlPlane\AIMemory\Claude\<时间戳>\（SHA-256回读）
-                              # ③镜像并推送到私有云仓库 wlyaaaaa/claude-memory（E:\Projects\Backups\claude-memory）
-```
-计划任务「OpenClaw Memory Backup」每日 **20:20 + 22:20** 自动跑。记忆含运维上下文（**已脱敏，非原始密钥**）；G 热备随 ControlPlane 白名单进入人工 H 冷备，云备份在**私有**仓库。新机恢复：`git clone` claude-memory 后按项目目录把 `memory\*.md` 拷回对应 `C:\Users\<USER>\.claude\projects\<project>\memory\`。
-
-云端同步采用严格验收：先刷新 upstream，远端领先或分叉时拒绝自动覆盖；只有暂存区确有变化才提交；本地已有未推送提交时即使工作区干净也会补推；最后以 `ls-remote` 回读确认远端分支 OID 与本地 `HEAD` 完全一致。Git 直连失败时会读取当下 Windows 系统代理作一次临时重试，不写死代理端口。fetch、commit、push 或回读任一步失败都会让脚本返回非零，供计划任务重试和告警。
-
-### `setup-codeg-bridge.ps1` — 一键接 codeg
-```powershell
-.\tools\setup-codeg-bridge.ps1   # 优先写入 PCConfig 受控启动器配置（无明文网关密码）+ 探活
-```
-用于 codeg 控制台经 Cline 调用 OpenClaw（ACP 直连走不通）。详见 [CODEG.md](CODEG.md)。
-
-### `restart_gateway.ps1` — 异步安全重启网关
-```powershell
-.\tools\restart_gateway.ps1      # 异步安全重启网关计划任务
-```
-由于 Windows 计划任务的强杀机制，直接在 OpenClaw 内核中或在子进程中运行 `/End` 会立即终止运行中的代码，从而导致无法继续执行随后的 `/Run`。该脚本通过 WMI 机制（`Invoke-WmiMethod`）在独立于当前计划任务进程树的后台拉起一个带有延迟的重启命令，安全且彻底地实现网关服务重新加载。
-
----
-
-## 备注
-- 多数 `tools\` 脚本会**重启网关**以即时生效；加 `-NoRestart` 可延后到下次启动。
-- 标量配置经原生 `openclaw config set/patch` 校验写入，避免手改 JSON 出错。
-- 密钥仅写入本机 `C:\Users\<USER>\.openclaw\`，**永不入库**。
+- 成本状态不能把仍有远程路线的系统显示为 `API OFF`；
+- bootstrap 未填占位时不产生副作用；
+- CodeG upsert 保留其他 MCP Server，畸形 JSON 不覆盖；
+- Gateway 官方生命周期回执；
+- 官方备份与 staging-only（只暂存）恢复；
+- 受控更新的 equal/behind/ahead/partial；
+- Git 同步的 clean/ahead/behind/diverged 与远端 OID 回读；
+- 公开仓库无凭据形态、机器专用残件和坏文档链接。

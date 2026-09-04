@@ -112,9 +112,10 @@ function Compare-Versions {
 function ConvertTo-NpmTag {
     param([string]$Channel)
     switch ($Channel) {
-        'beta' { return 'beta' }
-        'dev'  { return 'dev' }
-        default { return 'latest' }
+        'beta'            { return 'beta' }
+        'dev'             { return 'dev' }
+        'extended-stable' { return 'extended-stable' }
+        default           { return 'latest' }
     }
 }
 

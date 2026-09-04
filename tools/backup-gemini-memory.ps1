@@ -12,12 +12,15 @@
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
-$src       = Join-Path $env:USERPROFILE ".gemini"
-$root      = Join-Path $env:USERPROFILE ".openclaw\memory-backup\gemini"
-$hotRoot   = "G:\80_Backup\ControlPlane\AIMemory\Gemini"
-$cloudRepo = "E:\Projects\Backups\gemini-memory"   # private repo: wlyaaaaa/gemini-memory
+. (Join-Path $PSScriptRoot 'private-backup-settings.ps1')
+$settings = Get-PrivateBackupSettings -DefaultSettingsPath (Join-Path $PSScriptRoot 'private-backup.local.json') -Group 'gemini_memory'
+
+$src       = $settings.source_root
+$root      = $settings.snapshot_root
+$hotRoot   = $settings.hot_snapshot_root
+$cloudRepo = $settings.cloud_repo
 $keep      = 30
-$log       = Join-Path (Join-Path $env:USERPROFILE ".openclaw\logs\OpenClawGateway") "backup-gemini-memory.log"
+$log       = $settings.log_file
 . (Join-Path $PSScriptRoot 'git-cloud-sync.ps1')
 . (Join-Path $PSScriptRoot 'g-hot-snapshot.ps1')
 
@@ -56,7 +59,7 @@ function Add-Files([System.Collections.Generic.List[object]]$files, [string]$bas
 
 function Get-GeminiMemoryFiles {
     if (-not (Test-Path -LiteralPath $src)) {
-        throw "Gemini directory does not exist: $src"
+        throw 'Gemini source directory does not exist.'
     }
 
     $files = [System.Collections.Generic.List[object]]::new()
@@ -121,10 +124,10 @@ function Copy-SelectedFiles($files, [string]$destinationRoot) {
 function Clear-CloudRepo([string]$path) {
     $resolved = (Resolve-Path -LiteralPath $path).Path
     if ($resolved -ne $cloudRepo) {
-        throw "Refusing to clear unexpected cloud repo path: $resolved"
+        throw 'Refusing to clear an unexpected cloud backup repository.'
     }
     if (-not (Test-Path -LiteralPath (Join-Path $resolved '.git'))) {
-        throw "Cloud repo is not initialized: $resolved"
+        throw 'Cloud backup repository is not initialized.'
     }
     Get-ChildItem -LiteralPath $resolved -Force |
         Where-Object { $_.Name -ne '.git' } |
@@ -217,14 +220,14 @@ if (Test-Path -LiteralPath (Join-Path $cloudRepo '.git')) {
         # Always verify the remote, including when the generated snapshot is unchanged.
         $sync = Invoke-VerifiedGitRemoteSync -Repository $cloudRepo -Remote 'origin' -Branch $branch
         $verb = if ($sync.Pushed) { 'pushed' } else { 'already current' }
-        Log "[OK] cloud backup $verb; fresh remote OID verified (private: wlyaaaaa/gemini-memory)"
+        Log "[OK] cloud backup $verb; fresh remote OID verified (private backup repository)"
     } catch {
         Log "[ERROR] cloud backup failed (local snapshot succeeded, task will fail): $_"
         throw
     }
 } else {
-    Log "[ERROR] cloud backup repo not initialized ($cloudRepo)"
-    throw "Cloud backup repo not initialized: $cloudRepo"
+    Log '[ERROR] cloud backup repository not initialized'
+    throw 'Cloud backup repository is not initialized.'
 }
 
 Log "=== done ==="

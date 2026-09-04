@@ -1,75 +1,75 @@
-# 日常使用指南
+# 使用路径
 
-> 适配：OpenClaw v2026.6.10 + DashScope/Qwen。
-> **默认即最强**：默认模型 `qwen3.7-plus`（手机+电脑统一）+ 思考等级 `max`（追求能力，不为省钱妥协）。
-> 当前 API **已启用（ON）**，机器人可直接用；想零花费时 `api.ps1 off` 回安全模式（清空 key）。
+## 1. 先看当前状态
 
-## 0. 开始使用
 ```powershell
-# 点亮机器人（还原 key、保持 Telegram/飞书 enabled、开 funnel、重启）
-powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\enable-openclaw-api.ps1
-```
-然后手机 Telegram / 飞书给 bot 发消息即可。用完若想零花费：`disable-openclaw-api.ps1`，它不会把 Telegram / 飞书 `enabled` 改成 `false`。
-
-## 1. 模型与思考（默认已拉满）
-- 默认就是最强推理模型 + 最高思考；一般无需手动调。
-- 临时换模型/降思考（省 token 或加速）用斜杠命令或脚本：
-```powershell
-.\tools\switch-model.ps1 -Model qwen3-max-2026-01-23 -Thinking medium   # 临时换轻量
-.\tools\switch-model.ps1 -Model qwen3.7-plus -Thinking max     # 切回最强
-```
-- **新模型上线**（阿里出新版）时：`.\tools\switch-model.ps1 -Model <新id> -Register`。
-
-## 2. 常用斜杠命令（聊天框直接发）
-| 命令 | 作用 |
-|------|------|
-| `/new` | 重置会话。**长对话会 context overflow（历史崩溃根因），换任务就 /new** |
-| `/model` ｜ `/model set <id>` | 查看 / 切换模型 |
-| `/think off\|low\|medium\|high\|max` | 临时调思考深度 |
-| `/reasoning on\|off` | 显示 / 隐藏思考过程 |
-| `/settings` ｜ `/doctor` | 配置看板 / 自检 |
-
-## 3. 手机 ChatOps（核心玩法）
-手机 Telegram 给 bot 下任务，它在 Win11 后台执行，结果回传聊天框。
-例：“用本地 cline 打开 bilibili 截图保存到 E:\ClineAgent\test.png，完成后把图发我”。
-OpenClaw 收到 → 调本机 Cline CLI → 截图 → 回传。
-
-## 4. 渠道与安全
-- 当前 **Telegram** 和 **飞书** 的 `enabled` 长期开关保持开启；API key 脚本不得改写它们。
-- Telegram 白名单仅 owner ID；公开仓库只写 `<TELEGRAM_USER_ID>`，实际值从私有 `openclaw.json` 或 `OC_TELEGRAM_USER_ID` 注入，别用 `"*"`。飞书也必须使用正确白名单（飞书用 open_id，别用 `"*"`）。
-- Google Chat 默认关；要用先填正确白名单再启用。
-- `commands.bash` 开着＝聊天可在本机执行命令，务必只对可信白名单开放。
-
-## 5. 成本与稳定（信息参考，不强制）
-- 你优先“最强”，默认已最强；如某段时间想省，临时用 `qwen3-max-2026-01-23` + `/think low`。
-- `memory-core.dreaming` 默认**关**（开=后台自动思考会持续花费）。
-- 长期不用就 `disable`（安全模式，零花费）。
-- Node 堆已设 1536MB，重载多渠道时更不易 OOM。
-
-## 6. 一屏自检
-```powershell
-.\tools\status.ps1     # 版本/网关/任务/模型/思考/API模式/渠道/Funnel
+pwsh -NoProfile -File .\tools\status.ps1
+pwsh -NoProfile -File .\api.ps1 status
+pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Json
 ```
 
+你会看到：OpenClaw 版本、Gateway RPC、配置、计划任务、默认模型、各 Provider 路由、渠道开关和 Funnel（外部 Tailscale 路由）状态。
 
-## 7. 在 Telegram/飞书 对话式控制（owner 直接发）
-| 发什么 | 作用 |
-|--------|------|
-| `/model` ｜ `/model set <id>` | 看 / 切模型 |
-| `/think off..max` | 调思考等级 |
-| `/new` | 开新会话 |
-| `/status` ｜ `/settings` ｜ `/doctor` | 网关状态 / 配置看板 / 自检 |
-| "汇报系统/脚本状态" | 它会跑 `tools/status.ps1` 简洁汇报（版本/网关/任务/模型/思考/渠道） |
+状态解释：
 
-## 8. ⚠️ 自动更新：不要点应用内的"自动更新"按钮
-- **应用内/原生 `openclaw update`** 会跑 **doctor + schema 迁移**，可能：补回 `*` 白名单、**把 `api` 改回 `responses`→ 技能全部 400 失败**、覆盖自定义开机任务。**风险高，别按。**
-- **AI 路由更新**：`pwsh -NoProfile -File E:\PCConfig\tools\Invoke-ManagedSoftware.ps1 -Id 小龙虾 -Action Status -Json` 查状态；`-Action Update -Json` 安全更新（需管理员；非管理员返回 `elevation_required`）。adapter `tools/managed-component.ps1` 原子完成备份→更新→等待→验证。
-- **手动更新**：`powershell -NoProfile -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\openclaw_update.ps1`。该入口调用同一个 owner adapter，自动执行必需备份，**只用 npm、不跑 doctor**；版本、关键配置、任务状态和端口稳定性全部通过才算成功。
-- 万一手滑点了应用内更新：不要把再次更新当成修复；按 `MAINTENANCE.md` 检查关键配置与任务状态，版本相等时 adapter 只报告状态、不做修复。
-- 永远别跑 `openclaw doctor --fix`（它会补回 `*`）。
+- Gateway RPC/health 通过：当前网关可响应；
+- 渠道 enabled：只代表配置打开，不代表消息已收发；
+- route + auth configured：代表路线与认证存在，不代表远程调用成功；
+- 默认 local：新会话通常从本地模型开始，不代表所有旧会话和计划任务都不会用远程模型；
+- Update Disabled：是人工受控更新的正常状态，不是故障。
 
-## 9. 在 codeg 控制台里用 OpenClaw（详见 [CODEG.md](CODEG.md)）
-- ❌ **别用** codeg 的「OpenClaw」ACP agent —— per-session MCP + auth 握手是 codeg 的 bug，走不通。
-- ✅ 用 **Cline** agent + 挂 `openclaw-bridge` MCP；本机优先走 PCConfig 受控启动器，Cline 配置不保存网关密码。
-- 一键配置：`powershell -ExecutionPolicy Bypass -File E:\Projects\Tools\OpenClawGateway\tools\setup-codeg-bridge.ps1` → codeg「MCP」页点刷新 → 把 openclaw-bridge 勾给 Cline → 用 Cline 发任务。
-- 配好后 Cline 可调 OpenClaw 的 9 个对话工具（列对话 / 读发消息 / 轮询事件 / 处理审批）。
+## 2. 从手机交办
+
+在已经完成私人渠道配置的前提下，从 Telegram 或飞书发送任务。正常链路是：消息进入 Gateway、Agent 选择模型并执行、结果回到原渠道。
+
+本公开仓库不包含机器人身份、白名单、token 或私人入口。若只看到 `enabled`，但没有真实入站和回发证据，应把渠道记为“已配置、未完成 E2E”。
+
+## 3. 选择模型
+
+使用 OpenClaw 官方命令查看和变更：
+
+```powershell
+openclaw models status --json
+openclaw models list
+openclaw models set <provider/model>
+openclaw models auth list --json
+```
+
+模型状态不会输出 secret（秘密），但仍不要把账号标签或私人配置原文复制到公开报告。
+
+`api.ps1 status` 是成本态势，不是开关。旧 `on/off/toggle` 已退役并返回退出码 2，因为它无法覆盖多来源认证、会话固定模型和全部远程路线。
+
+## 4. Gateway 不健康
+
+先运行只读检查：
+
+```powershell
+openclaw config validate --json
+openclaw gateway status --require-rpc --json
+openclaw health --json --verbose
+pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Json
+```
+
+只有确定需要重注册时，才在管理员 PowerShell 中显式执行：
+
+```powershell
+pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Repair -Json
+```
+
+该动作会改变 Windows 常驻注册。默认不带 `-Repair` 时不会修改系统。
+
+## 5. 备份与恢复演练
+
+```powershell
+$receipt = pwsh -NoProfile -File .\tools\backup-config.ps1 -Json | ConvertFrom-Json
+pwsh -NoProfile -File .\tools\restore-config.ps1 `
+  -From $receipt.backup_path `
+  -Target <fresh-directory> `
+  -Json
+```
+
+恢复结果中的 `activation_performed=false` 是正确状态：归档只被恢复到全新暂存目录，没有覆盖正在运行的 OpenClaw。
+
+## 6. CodeG / Cline
+
+运行 `tools/setup-codeg-bridge.ps1` 会保留 Cline 现有配置，只插入或更新 `openclaw-bridge`。之后仍需在 CodeG/Cline 中刷新、启用，并完成一次 MCP 初始化与工具列表回读；端口在线不能替代这一步。详见 [CODEG.md](CODEG.md)。

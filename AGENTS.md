@@ -6,8 +6,8 @@ This repository is the public, sanitized operations shell for a personal OpenCla
 
 - Keep this repository free of secrets, tokens, private endpoints, account-specific credentials, raw runtime logs, and complete machine recovery snapshots.
 - Do not document exact token storage locations, provider keys, gateway passwords, private model endpoints, or credential-bearing config paths here.
-- Full private handoff notes and recovery details live in the private backup repository `wlyaaaaa/openclaw-backup`.
-- If a detail is required for recovery but sensitive in a public repository, record only a pointer here and place the full content in the private backup repository.
+- Full private handoff notes and recovery details belong to the private backup owner. Do not publish its repository coordinate or internal path here.
+- If a detail is required for recovery but sensitive in a public repository, record only the owning role here and place the full content in the authorized private store.
 
 ## Project Role
 
@@ -24,8 +24,8 @@ Treat specific host paths, account names, provider URLs, credentials, model rout
 
 ## Working Rules
 
-- Before pushing to this public repo, run a secret scan for token, API key, private key, gateway password, authorization headers, and credential JSON patterns.
-- Prefer high-level descriptions in public docs. Put exact recovery steps, credentials, machine-specific topology, and private troubleshooting notes in `wlyaaaaa/openclaw-backup`.
+- Before pushing to this public repo, run the project-specific public-content check for token, API key, private key, gateway password, authorization headers, credential JSON patterns, account identifiers, and private handoff coordinates.
+- Prefer high-level descriptions in public docs. Put exact recovery steps, credentials, machine-specific topology, and private troubleshooting notes under the private backup owner.
 - Avoid `git add .` when the worktree contains generated logs, machine snapshots, screenshots, or exported config.
 - If a public document needs to mention a private component, describe its role and link by repository name only.
 
@@ -37,13 +37,6 @@ The owner uses private GitHub repositories as trusted cloud backups for secrets 
 - `PUBLIC` repositories must remain sanitized.
 - Do not repeat secret values in chat responses or public docs, even when the values are backed up privately.
 
-## Current Sensitive Handoff Location
+## Private Handoff Boundary
 
-The full OpenClawGateway handoff that previously lived in this public `AGENTS.md` has been moved to:
-
-```text
-wlyaaaaa/openclaw-backup
-private-handovers/OpenClawGateway-AGENTS-full-2026-07-05.md
-```
-
-Use that private file for machine-specific recovery and deep operations context.
+The full machine-specific handoff is intentionally undiscoverable from this PUBLIC repository. Resolve it only through the authorized private backup owner when a recovery task actually requires it.

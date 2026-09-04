@@ -1,124 +1,74 @@
-# 从零 / 重装部署指南
+# 部署与 bootstrap
 
-> 目标：在**全新或重装的 Windows 11** 上，从 GitHub 拉下本仓库，把整套 OpenClaw 网关
-> （含本仓库的全部优化）**从零重建**。配置目录 `C:\Users\<你>\.openclaw\`。
+## 前提
 
----
+- Windows 10/11；
+- PowerShell 7；
+- Node.js 与 OpenClaw 由官方支持方式安装；
+- 私人渠道和 Provider 凭据在本机私人配置中完成，不写入本仓库。
 
-## 0. 先决条件 & 心智模型
-部署 = **公开仓库（脚本+模板+文档）** + **私有密钥（你自己保管）** 的组合：
-- **公开可拉取**：本仓库的脚本、脱敏配置模板、文档。
-- **私有不可入库**：DashScope API key、网关密码、Telegram botToken、飞书 appSecret、
-  Google 服务账号 —— 这些只在你本机 `.openclaw\`，靠**你自己的备份**恢复。
+官方入口：
 
-> ⚠️ **现在就做的事（防患未然）**：定期运行 `.\tools\backup-config.ps1`，把
-> `C:\Users\<USER>\.openclaw\secrets-backup\full-*` 整个目录**异地保存**（U 盘 / 私有网盘）。重装时这份备份 = 满血复活。
+- [Gateway CLI](https://docs.openclaw.ai/cli/gateway)
+- [Configuration](https://docs.openclaw.ai/configuration)
+- [Models CLI](https://docs.openclaw.ai/cli/models)
+- [Channels CLI](https://docs.openclaw.ai/cli/channels)
+- [Backup CLI](https://docs.openclaw.ai/cli/backup)
 
----
+## 公共模板
 
-## 1. 一键部署（推荐）
-管理员 PowerShell：
+`bootstrap/openclaw.template.json` 是脱敏配置模板；旧 `auth-profiles.template.json` 已退役，模型认证只走官方 `openclaw models auth`：
+
+- 消息渠道默认 disabled；
+- allowlist 为空，不允许 `*`；
+- Gateway 默认 loopback；
+- dreaming 与自动更新默认关闭；
+- 必填值保留显式占位符。
+
+模板不预设 Gateway 认证方式或任何秘密。认证由私人 ConfigSource、OpenClaw 官方配置流程或 PCConfig 受控启动器完成。
+
+`bootstrap/setup.ps1` 必须在任何安装、配置写入或任务注册之前检查占位符。占位未替换时应非零退出，不能打印“完成”。
+
+## 安装流程
+
+1. 把 `openclaw.template.json` 复制到私人工作位置；
+2. 在私人副本中填入实际 workspace（工作区）、模型和渠道设置；
+3. 用 `-WhatIf` 预演，确认候选 schema 与占位符检查通过；
+4. 由 bootstrap 原子写入配置，并在后验失败时自动恢复旧配置；
+5. 使用官方 `openclaw models auth` 完成私人模型认证；
+6. 需要时显式注册 Gateway，再独立回读配置、RPC、health 和计划任务。
+
 ```powershell
-git clone https://github.com/wlyaaaaa/OpenClawGateway.git E:\Projects\Tools\OpenClawGateway
-cd E:\Projects\Tools\OpenClawGateway
-
-# 模式 A：有私有备份（最快，含密钥）
-.\bootstrap\setup.ps1 -RestoreFrom "D:\OpenClawBackup\full-20260619-220000"
-
-# 模式 B：全新、无备份（用模板，过程中交互填密钥）
-.\bootstrap\setup.ps1
-```
-`setup.ps1` 是未接入 PCConfig 时的旧式兼容安装：装运行时(Node/openclaw/cline) → 还原/初始化配置 → 设网关密码 →
-生成 gateway.cmd 作为本地配置参考 → 注册 Gateway/Heartbeat；`OpenClaw Update` 任务保留但 Disabled → 装 Cline 全局规则 → 校验。
-
-完成后：
-```powershell
-.\api.ps1 on            # 点亮机器人
-.\tools\status.ps1      # 核对状态
-```
-
----
-
-## 2. 手动部署（理解每一步）
-```powershell
-# (1) 运行时
-winget install OpenJS.NodeJS.LTS
-npm install -g openclaw cline
-
-# (2) 配置：二选一
-#   A. 有备份：还原回 ~/.openclaw
-.\tools\restore-config.ps1 -From "D:\OpenClawBackup\full-..."
-#   B. 无备份：用模板
-copy bootstrap\openclaw.template.json        $env:USERPROFILE\.openclaw\openclaw.json
-copy bootstrap\auth-profiles.template.json   $env:USERPROFILE\.openclaw\auth-profiles.json
-#      然后把两个文件里的 <...> 占位符换成真实密钥
-
-# (3) 推荐先恢复 PCConfig Secret Broker，由受控启动器注入网关密码；
-#     不再把密码写入 User/Machine 环境变量
-
-# (4) 静默开机自启 + 心跳 + 更新任务
-.\openclaw_silent_boot_guardian.ps1
-#   （心跳/更新任务的注册命令见 MAINTENANCE.md 第 3 节，或直接用 setup.ps1）
-
-# (5) Cline 全局规则
-copy bootstrap\cline-rules\openclaw-service.md  $env:USERPROFILE\Documents\Cline\Rules\
-
-# (6) 点亮
-.\api.ps1 on
+pwsh -NoProfile -File .\bootstrap\setup.ps1 -ConfigSource <private-openclaw.json> -WhatIf
+pwsh -NoProfile -File .\bootstrap\setup.ps1 -ConfigSource <private-openclaw.json>
+openclaw models auth list --json
+pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Repair -Json
+openclaw config validate --json
+openclaw gateway status --require-rpc --json
+openclaw health --json --verbose
+pwsh -NoProfile -File .\openclaw_silent_boot_guardian.ps1 -Json
 ```
 
----
+## 从 disabled 模板到可收消息
 
-## 3. 密钥清单（填占位符时对照）
-| 占位符 | 含义 | 哪里拿 |
-|--------|------|--------|
-| `<DASHSCOPE_API_KEY>` | 阿里云百炼 API key | 百炼控制台 → API-KEY |
-| `OPENCLAW_GATEWAY_PASSWORD` | 网关登录密码 | 你自定义 |
-| `<TELEGRAM_BOT_TOKEN>` | Telegram 机器人 token | BotFather `/mybots → API Token` |
-| `<FEISHU_APP_SECRET>` | 飞书应用密钥 | 飞书开放平台 → 凭证 |
-| `<GOOGLE_SERVICE_ACCOUNT_JSON_ONE_LINE>` | Google Chat 服务账号 | GCP → 服务账号 JSON（转单行） |
+公共模板故意把所有渠道关闭，也不保存 token。完成私人配置后，使用官方 guided setup（引导设置），不要把凭据写进本仓库或命令历史：
 
-> 用 `tools\set-api.ps1 -Key <key>` 可快速填 DashScope key（避免手改 JSON）。
-
----
-
-## 4. 这套部署内置的优化（重装后自动带上）
-模板 `bootstrap/openclaw.template.json` 已固化以下优化，重装即恢复：
-- **默认模型** `qwen3.7-max`（最强）+ **`thinkingDefault: adaptive`**（分级预算，难题拉满、闲聊降档省 token）
-- **`contextPruning: {mode: cache-ttl, ttl: 5m}`** —— 自动裁剪累积的旧工具输出，对话质量无损（官方 session-pruning，纯省 token）
-- 模型名已修复（无乱码）、移除失效 gemini 选项；`runRetries.max=5`（减少无效重试烧 token）
-- **更新通道 stable** + `checkOnStart=false`（开机不被 registry 超时拖崩）
-- `OpenClaw Gateway` 计划任务 direct-node 参数带 `--max-old-space-size=1536`（防 OOM）
-- 渠道默认收敛白名单（无 `"*"`）
-
-### 4.1 工具联动（skills 触发式联想）
-重装后由 `setup.ps1` 安装到工作区 `skills/`，让主脑**自动联想**正确工具：
-- `🦞 cline-coding` —— 提到**写/改/调试代码、多文件、构建功能** → 委托本机 Cline（便宜模型 + diffs-only，省 token）
-- `💬 wechat` —— 提到**微信/群消息/私聊/朋友圈** → 调本机 WeFlow API 读消息（此 skill 含本机隐私用法，**不入公开仓库**，重装从私有备份恢复）
-
-### 4.2 可选进阶优化（需有付费 API 实跑验证后再开）
-- **Prompt 缓存**：`agents.defaults.params.cacheRetention: "long"` +
-  `models.providers.openai.compat.supportsPromptCacheKey: true`（+`supportsLongCacheRetention: true`）。
-  大杠杆，但 DashScope 是否接受该参数需真跑确认；若首条请求报模型错即回滚此两项。
-- **Lobster**（复杂工作流编排，省工具调用 token）：当前未安装，可 `openclaw` 生态安装后启用。
-- **AGENTS.md 瘦身**（约 4.1K tokens/轮）：行为影响需实跑验证，谨慎。
-
----
-
-## 5. 部署后验证
 ```powershell
-.\tools\status.ps1                                   # 版本/网关/任务/模型/API
-openclaw config validate                             # 配置 schema 合法
-Get-ScheduledTask 'OpenClaw *' | ft TaskName,State   # 三任务 Ready
-Test-NetConnection 127.0.0.1 -Port 18789             # 端口监听
+openclaw channels list --all
+openclaw channels add
+openclaw channels status --probe
 ```
 
-## 6. 常见问题
-| 现象 | 处理 |
-|------|------|
-| 开机不自启 | `OpenClaw Gateway` 任务别是 Disabled；重跑 `openclaw_silent_boot_guardian.ps1` |
-| 大模型报错 | `status.ps1` 看 API 是否安全模式（key 空）；`set-api.ps1 -Show` |
-| 启动慢/超时 | 确认 `update.checkOnStart=false`；本地代理是否就绪 |
-| 想零花费 | `.\api.ps1 off` |
+`channels status --probe` 只证明账户/连接探测。最终仍需从目标应用发送一条受控测试消息，并确认入站、Agent 执行与原渠道回发都成功，才算渠道 E2E（端到端）通过。
 
-> 更细的运维/故障排查见 [MAINTENANCE.md](MAINTENANCE.md)；日常使用见 [USAGE.md](USAGE.md)。
+不要从公开模板推断本机账号、机器人 ID、私有 endpoint（端点）或 token。真实值由私人配置 Owner 管理。
+
+## 验收层级
+
+- 模板解析通过：只证明静态文件合法；
+- setup 成功：证明安装脚本完成；
+- Gateway RPC/health 通过：证明网关当前健康；
+- 渠道消息 E2E：还需要一次真实入站与回发；
+- 远程模型 Live（真实调用）：还需要一次可能付费的模型请求。
+
+后两项不能由前面的测试替代。

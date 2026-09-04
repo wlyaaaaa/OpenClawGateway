@@ -1,104 +1,111 @@
 ﻿<#
-.SYNOPSIS  从备份恢复 OpenClaw 配置与密钥。
-.EXAMPLE   .\restore-config.ps1 -From "$env:USERPROFILE\.openclaw\secrets-backup\full-20260619-220000"
-.EXAMPLE   .\restore-config.ps1 -Latest        # 自动选最新 full-* 备份
-.NOTES     恢复前会停网关、并把当前配置另存为 .pre-restore 以便回退。
+.SYNOPSIS
+  验证 OpenClaw 官方备份，并恢复到全新的暂存目录。
+.DESCRIPTION
+  OpenClaw 2.0 的恢复合同是 staging-only（只恢复到暂存区）：不会停网关，
+  不会覆盖当前配置，也不会自动激活。确认暂存内容后，离线激活应按官方恢复
+  指南单独执行。
 #>
+[CmdletBinding()]
 param(
     [string]$From,
     [switch]$Latest,
-    [switch]$NoRestart
+    [string]$Target,
+    [switch]$Json
 )
-$ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot '_common.ps1')
 
-function Get-OcDirectoryInventory {
-    param([string]$Root)
-    $base = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
-    return @(
-        Get-ChildItem -LiteralPath $base -Recurse -File -Force |
-            Sort-Object FullName |
-            ForEach-Object {
-                [pscustomobject]@{
-                    path = [IO.Path]::GetRelativePath($base, $_.FullName).Replace('\', '/')
-                    length = [int64]$_.Length
-                    sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
-                }
-            }
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function Resolve-OpenClawArchive([string]$InputPath) {
+    if ([string]::IsNullOrWhiteSpace($InputPath)) { return $null }
+    if (Test-Path -LiteralPath $InputPath -PathType Leaf) {
+        return (Resolve-Path -LiteralPath $InputPath).Path
+    }
+    if (Test-Path -LiteralPath $InputPath -PathType Container) {
+        $legacy = Join-Path $InputPath 'openclaw-native-backup.zip'
+        if (Test-Path -LiteralPath $legacy -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $legacy).Path
+        }
+        $candidates = @(
+            Get-ChildItem -LiteralPath $InputPath -File |
+                Where-Object { $_.Name -match '\.(zip|tar\.gz)$' } |
+                Sort-Object LastWriteTimeUtc -Descending
+        )
+        if ($candidates.Count -eq 0) { return $null }
+        return $candidates[0].FullName
+    }
+    return $null
+}
+
+if ($Latest -or [string]::IsNullOrWhiteSpace($From)) {
+    $backupRoot = if ([string]::IsNullOrWhiteSpace($env:OPENCLAW_BACKUP_DIR)) {
+        Join-Path $env:USERPROFILE 'OpenClawBackups'
+    }
+    else { $env:OPENCLAW_BACKUP_DIR }
+    $latestArchive = @(
+        Get-ChildItem -LiteralPath $backupRoot -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '\.(zip|tar\.gz)$' } |
+            Sort-Object LastWriteTimeUtc -Descending
+    ) | Select-Object -First 1
+    if ($null -ne $latestArchive) { $From = $latestArchive.FullName }
+}
+
+$archive = Resolve-OpenClawArchive $From
+if ([string]::IsNullOrWhiteSpace($archive)) {
+    throw '找不到 OpenClaw 备份归档；请用 -From 指定归档文件或备份目录。'
+}
+
+if ([string]::IsNullOrWhiteSpace($Target)) {
+    $parent = Split-Path -Parent $archive
+    $Target = Join-Path $parent (
+        'restore-stage-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff') + '-' +
+        [Guid]::NewGuid().ToString('N').Substring(0, 8)
     )
 }
+$targetFull = [IO.Path]::GetFullPath($Target)
+if (Test-Path -LiteralPath $targetFull) {
+    throw '恢复目标必须是尚不存在的全新目录。'
+}
 
-function Copy-OcDirectoryExact {
-    param([string]$Source, [string]$Target)
-    $sourceInventory = @(Get-OcDirectoryInventory $Source)
-    if ($sourceInventory.Count -eq 0) { throw 'Credentials backup is empty.' }
-    $parent = Split-Path -Parent $Target
-    $nonce = [Guid]::NewGuid().ToString('N')
-    $candidate = Join-Path $parent ".credentials-candidate-$nonce"
-    $rollback = Join-Path $parent "credentials.pre-restore-$nonce"
-    $failed = Join-Path $parent ".credentials-failed-$nonce"
-    $oldMoved = $false
-    $newActivated = $false
-    try {
-        New-Item -ItemType Directory -Path $candidate | Out-Null
-        Get-ChildItem -LiteralPath $Source -Force | ForEach-Object {
-            Copy-Item -LiteralPath $_.FullName -Destination $candidate -Recurse -Force
-        }
-        if (((Get-OcDirectoryInventory $candidate) | ConvertTo-Json -Compress) -cne
-            ($sourceInventory | ConvertTo-Json -Compress)) {
-            throw 'Credentials staging readback failed.'
-        }
-        if (Test-Path -LiteralPath $Target) {
-            Move-Item -LiteralPath $Target -Destination $rollback
-            $oldMoved = $true
-        }
-        Move-Item -LiteralPath $candidate -Destination $Target
-        $newActivated = $true
-        if (((Get-OcDirectoryInventory $Target) | ConvertTo-Json -Compress) -cne
-            ($sourceInventory | ConvertTo-Json -Compress)) {
-            throw 'Credentials restore readback failed.'
-        }
-        return $rollback
-    }
-    catch {
-        if ($newActivated -and (Test-Path -LiteralPath $Target)) {
-            Move-Item -LiteralPath $Target -Destination $failed
-        }
-        if ($oldMoved -and (Test-Path -LiteralPath $rollback)) {
-            Move-Item -LiteralPath $rollback -Destination $Target
-        }
-        throw
-    }
-    finally {
-        if (Test-Path -LiteralPath $candidate) {
-            Remove-Item -LiteralPath $candidate -Recurse -Force
-        }
+$verifyRaw = & openclaw backup verify $archive --json 2>$null | Out-String
+if ($LASTEXITCODE -ne 0) { throw 'OpenClaw official backup verification failed.' }
+try { $verify = $verifyRaw | ConvertFrom-Json -Depth 30 }
+catch { throw 'OpenClaw official backup verification returned invalid JSON.' }
+foreach ($property in @('ok', 'valid', 'verified')) {
+    $value = $verify.PSObject.Properties[$property]
+    if ($null -ne $value -and $value.Value -ne $true) {
+        throw "OpenClaw backup verification reported $property=false."
     }
 }
 
-if ($MyInvocation.InvocationName -eq '.') { return }
+$restoreRaw = & openclaw backup restore $archive --target $targetFull --json 2>$null | Out-String
+if ($LASTEXITCODE -ne 0) { throw 'OpenClaw official staged restore failed.' }
+try { $restore = $restoreRaw | ConvertFrom-Json -Depth 30 }
+catch { throw 'OpenClaw official staged restore returned invalid JSON.' }
 
-if ($Latest -or -not $From) {
-    $privateBackupRoot = Join-Path $env:USERPROFILE '.openclaw\secrets-backup'
-    $From = (Get-ChildItem $privateBackupRoot -Directory -Filter 'full-*' -ErrorAction SilentlyContinue |
-        Sort-Object Name -Descending | Select-Object -First 1).FullName
-}
-if (-not $From -or -not (Test-Path $From)) { Write-Warn2 "找不到备份目录，请用 -From <路径>。"; return }
-Write-Step "从备份恢复：$From"
-
-Stop-Gateway
-Get-ChildItem $From -File | ForEach-Object {
-    $dst = Join-Path $OC $_.Name
-    if (Test-Path $dst) { Copy-Item $dst "$dst.pre-restore" -Force }
-    Copy-Item $_.FullName $dst -Force
-    Write-Step "已恢复 $($_.Name)"
-}
-$credBak = Join-Path $From 'credentials'
-if (Test-Path $credBak) {
-    $rollback = Copy-OcDirectoryExact $credBak (Join-Path $OC 'credentials')
-    Write-Step "已精确恢复 credentials\"
-    if (Test-Path -LiteralPath $rollback) { Write-Info "原 credentials\ 已保留用于回退。" }
+$restoredFiles = @(
+    Get-ChildItem -LiteralPath $targetFull -File -Recurse -Force -ErrorAction SilentlyContinue
+)
+if (-not (Test-Path -LiteralPath $targetFull -PathType Container) -or $restoredFiles.Count -eq 0) {
+    throw 'OpenClaw staged restore produced no readable files.'
 }
 
-if (-not $NoRestart) { Start-Gateway }
-Write-Host "`n✅ 恢复完成。" -ForegroundColor Green
+$result = [ordered]@{
+    schema = 'openclaw_restore_stage_result.v1'
+    ok = $true
+    archive = $archive
+    target = $targetFull
+    file_count = $restoredFiles.Count
+    verified = $true
+    activation_performed = $false
+    activation_required = $true
+}
+
+if ($Json) {
+    $result | ConvertTo-Json -Depth 6 -Compress
+}
+else {
+    Write-Host "恢复暂存完成：$targetFull" -ForegroundColor Green
+    Write-Warning '当前运行配置未被覆盖；检查暂存内容后再离线激活。'
+}
