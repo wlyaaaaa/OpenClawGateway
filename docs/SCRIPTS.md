@@ -20,7 +20,7 @@
 - `tools/managed-component.ps1`：受控更新状态机；
 - `tools/g-hot-snapshot.ps1`、`tools/git-cloud-sync.ps1`：现有私人备份消费者使用的热备与 Git 同步组件；
 - `tools/private-backup-settings.ps1`：为本仓库仍有计划任务消费者的 Gemini、Claude 与 OpenClaw 备份脚本读取被 Git 忽略的本机路径配置；公开源码不保存私库坐标或磁盘拓扑；
-- `tools/gemini_memory_backup_hidden.vbs`、`memory_backup_hidden.vbs`：本仓库拥有的 2 个隐藏计划任务入口。前者运行 Gemini；后者依次尝试 Claude 与 OpenClaw，并传播第一段非零，否则传播第二段结果。Codex 任务由独立 `codex-memory` Owner（负责人）实现；
+- `tools/gemini_memory_backup_hidden.vbs`、`memory_backup_hidden.vbs`：本仓库拥有的 2 个隐藏计划任务入口。前者只备份 Gemini / Antigravity 状态，不调用模型 CLI；后者依次尝试 Claude 与 OpenClaw，并传播第一段非零，否则传播第二段结果。Codex 任务由独立 `codex-memory` Owner（负责人）实现；
 - `tools/auto-archive-push.ps1`：公开仓库自动归档消费者，运行前执行公开内容门。
 
 ## 已退役入口

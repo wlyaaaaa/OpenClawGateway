@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------
 #  Mirrors only small, human-readable state into a private GitHub repo.
 #  Excludes raw conversations, transcripts, databases, scratch, media,
-#  recordings, binaries, and installation identifiers.
+#  recordings, binaries, installation identifiers, and credential-like files.
 # =====================================================================
 $ErrorActionPreference = 'Stop'
 
@@ -69,26 +69,40 @@ function Get-GeminiMemoryFiles {
     Add-File $files (Join-Path $src 'antigravity\antigravity_state.pbtxt')
     Add-Files $files (Join-Path $src 'antigravity\annotations') '*.pbtxt'
 
-    $brain = Join-Path $src 'antigravity\brain'
-    if (Test-Path -LiteralPath $brain) {
-        Get-ChildItem -LiteralPath $brain -Recurse -File |
-            Where-Object {
-                $rel = To-RelPath $_.FullName
-                ($rel -notmatch '/\.system_generated/') -and
-                ($rel -notmatch '/scratch/') -and
-                (($_.Name -like '*.md') -or ($_.Name -like '*.metadata.json'))
-            } |
-            ForEach-Object { Add-File $files $_.FullName }
+    foreach ($brainRelative in @('antigravity\brain', 'antigravity-cli\brain')) {
+        $brain = Join-Path $src $brainRelative
+        if (Test-Path -LiteralPath $brain) {
+            Get-ChildItem -LiteralPath $brain -Recurse -File |
+                Where-Object {
+                    $rel = To-RelPath $_.FullName
+                    ($rel -notmatch '/\.system_generated/') -and
+                    ($rel -notmatch '/scratch/') -and
+                    (($_.Name -like '*.md') -or ($_.Name -like '*.metadata.json'))
+                } |
+                ForEach-Object { Add-File $files $_.FullName }
+        }
     }
+
+    Add-File $files (Join-Path $src 'antigravity-cli\settings.json')
+    Add-Files $files (Join-Path $src 'antigravity-cli\annotations') '*.pbtxt'
 
     $files |
         Sort-Object RelativePath -Unique |
         Where-Object {
-            $_.RelativePath -notmatch '(^|/)installation_id$' -and
-            $_.RelativePath -notmatch '^tmp/' -and
-            $_.RelativePath -notmatch '^history/' -and
-            $_.RelativePath -notmatch '^antigravity/conversations/' -and
-            $_.RelativePath -notmatch '\.(db|sqlite|sqlite3|mp4|webm|png|jpg|jpeg|pdf|exe|pb)$'
+            $relative = [string]$_.RelativePath
+            $leaf = [IO.Path]::GetFileName($relative)
+            $credentialLike = $leaf -match '(?i)(oauth|credential|creds|token|secret)' -or
+                              $leaf -match '(?i)^auth([._-]|$)' -or
+                              $leaf -match '(?i)^google_accounts\.json$' -or
+                              $leaf -match '(?i)^\.env(?:\..+)?$'
+            -not $credentialLike -and
+            $relative -notmatch '(^|/)installation_id$' -and
+            $relative -notmatch '^tmp/' -and
+            $relative -notmatch '^history/' -and
+            $relative -notmatch '^antigravity/conversations/' -and
+            $relative -notmatch '^antigravity-cli/(conversations|cache|log|crashes|updater|builtin|bin|implicit|presence|knowledge)/' -and
+            $relative -notmatch '^antigravity-cli/history\.jsonl$' -and
+            $relative -notmatch '\.(db|sqlite|sqlite3|jsonl|log|mp4|webm|png|jpg|jpeg|pdf|exe|pb)$'
         }
 }
 
@@ -138,7 +152,7 @@ function Write-Readme([string]$path) {
     $content = @(
         '# gemini-memory (private cloud backup)',
         '',
-        '> Safe Gemini / Antigravity memory and config backup.',
+        '> Safe shared state backup for Antigravity Desktop and Antigravity CLI.',
         '> Synced and pushed by the local scheduled task `Gemini Memory Backup`.',
         '',
         '## Scope',
@@ -151,17 +165,24 @@ function Write-Readme([string]$path) {
         '- `antigravity/annotations/*.pbtxt`',
         '- `antigravity/brain/**/*.md`',
         '- `antigravity/brain/**/*.metadata.json`',
+        '- `antigravity-cli/settings.json`',
+        '- `antigravity-cli/annotations/*.pbtxt`',
+        '- `antigravity-cli/brain/**/*.md`',
+        '- `antigravity-cli/brain/**/*.metadata.json`',
         '',
         'Excluded:',
         '',
         '- raw conversations, transcripts, messages, and logs',
         '- `tmp/`, `history/`, and `scratch/`',
         '- conversation DBs, SQLite files, images, videos, recordings, PDFs, and binaries',
-        '- installation ids and credential-like files',
+        '- installation ids and credential-like files (OAuth/account/token/secret/auth files and `.env*`)',
+        '- Antigravity CLI caches, shipped built-ins, logs, crashes, updater state, presence/knowledge state, and binaries',
         '',
         '## Restore',
         '',
-        'Copy the repository contents back to `%USERPROFILE%\.gemini\` with the same relative paths. This restores small config and human-readable outputs only, not raw session databases or media.'
+        'Copy the repository contents back to `%USERPROFILE%\.gemini\` with the same relative paths. This restores small config and human-readable outputs only, not raw session databases, credentials, or media.',
+        '',
+        '> The scheduled task name is retained for compatibility. It does not invoke the retired Gemini CLI executable.'
     ) -join [Environment]::NewLine
     $content | Out-File -FilePath (Join-Path $path 'README.md') -Encoding utf8
 }

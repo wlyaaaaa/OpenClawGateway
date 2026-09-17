@@ -78,6 +78,19 @@ try {
         'antigravity\brain\project-two\scratch\ignored.md',
         'antigravity\brain\project-two\.system_generated\ignored.md',
         'antigravity\conversations\conversation.db',
+        'antigravity-cli\settings.json',
+        'antigravity-cli\annotations\one.pbtxt',
+        'antigravity-cli\brain\session-one\walkthrough.md',
+        'antigravity-cli\brain\session-one\one.metadata.json',
+        'antigravity-cli\brain\session-one\.system_generated\ignored.md',
+        'antigravity-cli\brain\session-one\scratch\ignored.md',
+        'antigravity-cli\conversations\conversation.db',
+        'antigravity-cli\history.jsonl',
+        'antigravity-cli\oauth_creds.json',
+        'antigravity-cli\google_accounts.json',
+        'config\credentials.json',
+        'config\auth.json',
+        'config\token-cache.json',
         'tmp\ignored.txt',
         'history\ignored.txt'
     )) {
@@ -120,10 +133,17 @@ try {
     Assert-Any $files 'antigravity/annotations/*.pbtxt' 'Antigravity annotation pbtxt files must be backed up.'
     Assert-Any $files 'antigravity/brain/*/walkthrough.md' 'Readable brain walkthrough markdown must be backed up.'
     Assert-Any $files 'antigravity/brain/*/*.metadata.json' 'Readable brain metadata JSON must be backed up.'
+    Assert-Any $files 'antigravity-cli/settings.json' 'Antigravity CLI user settings must be backed up.'
+    Assert-Any $files 'antigravity-cli/annotations/*.pbtxt' 'Antigravity CLI annotation pbtxt files must be backed up.'
+    Assert-Any $files 'antigravity-cli/brain/*/walkthrough.md' 'Antigravity CLI readable brain markdown must be backed up.'
+    Assert-Any $files 'antigravity-cli/brain/*/*.metadata.json' 'Antigravity CLI readable brain metadata must be backed up.'
 
     Assert-None $files '/\.system_generated/' 'Generated transcripts and messages must not be backed up.'
     Assert-None $files '/scratch/' 'Scratch files must not be backed up.'
     Assert-None $files '^antigravity/conversations/' 'Conversation databases must not be backed up.'
+    Assert-None $files '^antigravity-cli/conversations/' 'Antigravity CLI conversation databases must not be backed up.'
+    Assert-None $files '^antigravity-cli/history\.jsonl$' 'Antigravity CLI history must not be backed up.'
+    Assert-None $files '(?i)(oauth|credential|creds|token|secret|(^|/)auth([._-]|$)|google_accounts\.json|(^|/)\.env)' 'Credential-like files must never be backed up.'
     Assert-None $files '^tmp/' 'Temporary files must not be backed up.'
     Assert-None $files '^history/' 'History files must not be backed up.'
     Assert-None $files '\.(db|sqlite|sqlite3|mp4|webm|png|jpg|jpeg|pdf|exe|pb)$' 'Binary, media, and database files must not be backed up.'
