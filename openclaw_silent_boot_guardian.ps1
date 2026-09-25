@@ -73,10 +73,11 @@ function Get-TaskPosture {
     }
 }
 
-$pcconfigInstaller = Join-Path $PcConfigRoot 'tools\Install-SecretBroker.ps1'
+$pcconfigInstaller = Join-Path $PcConfigRoot 'tools\Install-OpenClawGateway.ps1'
 $pcconfigRegistry = Join-Path $PcConfigRoot 'registries\secret_broker.json'
+$managedLauncherPresent = Test-Path -LiteralPath $ManagedLauncher -PathType Leaf
 $managedAvailable =
-    (Test-Path -LiteralPath $ManagedLauncher -PathType Leaf) -and
+    $managedLauncherPresent -and
     (Test-Path -LiteralPath $pcconfigInstaller -PathType Leaf) -and
     (Test-Path -LiteralPath $pcconfigRegistry -PathType Leaf) -and
     (Test-Path -LiteralPath $PwshPath -PathType Leaf)
@@ -95,9 +96,8 @@ if ($Repair) {
             -ExecutionPolicy Bypass `
             -File $pcconfigInstaller `
             -RegistryPath $pcconfigRegistry `
-            -SkipShortcut `
-            -ConfigureOpenClawGatewayTask `
-            -ScrubOpenClawGatewayEnvironment `
+            -ConfigureTask `
+            -ScrubEnvironment `
             -Json
         if ($LASTEXITCODE -ne 0) { throw 'PCConfig managed gateway registration failed.' }
         $managed = $managedRaw | ConvertFrom-Json -Depth 20
@@ -107,6 +107,10 @@ if ($Repair) {
             throw 'PCConfig managed gateway verification failed.'
         }
         $repairRoute = 'pcconfig_managed'
+    }
+    elseif ($managedLauncherPresent) {
+        # A managed install exists; never downgrade it to the official registration.
+        throw 'PCConfig managed gateway launcher is installed but its installer or registry is unavailable.'
     }
     else {
         $null = Invoke-OpenClawJson @('gateway', 'install', '--force', '--port', [string]$Port, '--json')
